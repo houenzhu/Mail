@@ -46,11 +46,11 @@ public interface ProductApi {
     Result<AdminProductStatusCounts> adminStatusCounts();
 
     /** 分类列表（发布商品的必填下拉，见 G-08）。 */
-    @GetMapping("/category/list")
+    @GetMapping("/admin/category/list")
     Result<List<CategoryDTO>> listCategories();
 
     /** 品牌列表。 */
-    @GetMapping("/brand/list")
+    @GetMapping("/admin/brand/list")
     Result<List<BrandDTO>> listBrands();
 
     /**

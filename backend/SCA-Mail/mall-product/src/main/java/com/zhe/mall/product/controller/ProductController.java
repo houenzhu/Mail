@@ -71,21 +71,22 @@ public class ProductController {
         return Result.success(productService.sku(skuId));
     }
 
-    /* ---------------- 管理端数据接口（预期由 mall-admin 经 Feign 调用） ----------------
+    /* ---------------- 管理端数据接口（由 mall-admin 经 Feign 调用） ----------------
      *
-     * 注意：Gateway 当前存在 /api/product/** 路由，且 GET /api/product/** 在匿名白名单中；
-     * 因此 /api/product/admin/** 的路径命名不能隔离外部访问。管理读取方法还需要 staff
-     * 角色校验或内部凭据保护。当前授权缺口记录在需求文档 30.2。
+     * 管理读取接口必须在服务端校验 staff 角色；网关公开商品白名单也只覆盖明确的 C 端路由，
+     * 不能把路径命名或 Feign 调用约定当成安全边界。
      */
 
     /** 管理端商品分页（含已删除/按 ID 精确查）。 */
     @PostMapping("/admin/page")
+    @RequireStaff
     public Result<PageResult<ProductDTO>> adminPage(@RequestBody AdminProductPageQuery query) {
         return Result.success(productService.adminPage(query));
     }
 
     /** 管理端 Tab 角标：各状态商品数量（一次拿全，避免前端发多个 count 请求）。 */
     @GetMapping("/admin/status-counts")
+    @RequireStaff
     public Result<AdminProductStatusCounts> adminStatusCounts() {
         return Result.success(productService.statusCounts());
     }
@@ -104,12 +105,14 @@ public class ProductController {
 
     /** 按商品 ID 批量取 SKU（管理端列表聚合库存，一次拿整页，避免 N+1）。 */
     @PostMapping("/admin/sku-batch")
+    @RequireStaff
     public Result<Map<Long, List<SkuDTO>>> adminSkuBatch(@RequestBody List<Long> productIds) {
         return Result.success(productService.skusByProductIds(productIds));
     }
 
     /** 按 SKU ID 批量取 SKU（管理端库存流水补 SKU 编码/名称用，跨库不能 JOIN）。 */
     @PostMapping("/admin/sku-by-ids")
+    @RequireStaff
     public Result<List<SkuDTO>> adminSkuByIds(@RequestBody List<Long> skuIds) {
         return Result.success(productService.skusByIds(skuIds));
     }

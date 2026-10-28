@@ -6,6 +6,7 @@ import com.zhe.mall.api.dto.BrandSaveRequest;
 import com.zhe.mall.api.dto.CategoryDTO;
 import com.zhe.mall.api.dto.CategorySaveRequest;
 import com.zhe.mall.common.result.Result;
+import com.zhe.mall.common.auth.RequireStaff;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,12 +26,12 @@ import java.util.List;
  * 商品发布、筛选、列表都取它，未来其他后台模块（如活动）也会用；
  * 放在商品前缀下会让人误以为只属于商品域。
  *
- * <p>鉴权与 {@link AdminProductController} 一致：网关保证已登录；BFF 不做角色判断，
- * 写接口的角色校验由下游 mall-product 的 {@code @RequireStaff(OPERATOR)} 承担（规则只有一份），
- * 身份头继续透传给 mall-product。
+ * <p>鉴权与 {@link AdminProductController} 一致：网关保证会话有效，BFF 控制器要求 staff，
+ * 写接口的下游 mall-product 再以 {@code @RequireStaff(OPERATOR)} 做操作级校验，身份头继续透传。
  */
 @RestController
 @RequestMapping("/api/admin")
+@RequireStaff
 public class AdminCatalogController {
 
     private final AdminProductService adminProductService;

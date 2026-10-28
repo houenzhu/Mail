@@ -102,7 +102,14 @@ mall:
       - POST:/api/auth/login
       - POST:/api/auth/register
       - POST:/api/auth/refresh
-      - GET:/api/product/**
+      # 公开商品读取只列出具体路由；不能使用 /api/product/**，否则会把
+      # /api/product/admin/** 管理接口一并放进匿名白名单。
+      - GET:/api/product/*
+      - GET:/api/product/*/detail
+      - GET:/api/product/page
+      - GET:/api/product/sku/**
+      - GET:/api/product/category/list
+      - GET:/api/product/brand/list
       - GET:/api/search/**
       - GET:/actuator/**
       # 渠道回调：渠道侧没有用户令牌，白名单是唯一可行入口，安全由验签 + 时间窗 + 回调流水唯一索引保证（ADR-021）

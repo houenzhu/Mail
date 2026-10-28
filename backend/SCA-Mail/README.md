@@ -42,7 +42,7 @@
 - 管理后台已接通登录、商品管理与分类/品牌维护；库存页展示商品库存汇总，但库存调整和流水未实现。后台订单/退款管理与数据看板也未实现，见 [后台前端说明](../../front/vue-admin-web/README.md)。
 - 买家端 `front/vue-mall` 仍为初始脚手架，尚无商城业务流程。
 - 当前没有客服会话、工单、知识库或 LangChain Agent 服务。第 30 章记录了作为后续项目的范围、数据准备和接口安全要求；它是规划，不是已交付功能。
-- **权限待修复**：`/api/admin/**` 网关路由要求登录，但后台商品读取 BFF 及其下游读取方法未统一要求 staff 角色；此外 `/api/product/admin/**` 被更宽的 `/api/product/**` 路由覆盖，不能依靠路径命名实现“仅 BFF 可访问”。详情和建议修复见需求文档 30.2。此状态不应标记为生产就绪。
+- **权限已补齐（2026-10-28）**：`/api/admin/**` 的商品与目录读取在 BFF 控制器要求 staff，下游管理读取接口再次要求 staff；网关公开商品 GET 白名单已收敛为明确的 C 端路径，不再覆盖 `/api/product/admin/**`。内部身份仍由 `X-Gateway-Token` 证明，直连服务或伪造身份头按匿名处理。
 
 网关内置路由（`spring.cloud.gateway.server.webflux.routes`）：
 
@@ -149,13 +149,13 @@ powershell -ExecutionPolicy Bypass -File .\scripts\init-db.ps1
 | admin | GET | `/api/admin/category/list`、`/api/admin/brand/list` | 分类/品牌字典列表 |
 | admin | POST/PUT/DELETE | `/api/admin/category[/{id}]`、`/api/admin/brand[/{id}]` | 分类/品牌维护（写入由下游 `@RequireStaff(OPERATOR)` 校验） |
 | product | GET | `/api/product/category/list`、`/api/product/brand/list` | 商品分类/品牌字典；当前作为 GET 商品路径也在网关匿名白名单内 |
-| internal-intended | POST/GET | `/api/product/admin/page`、`/api/product/admin/status-counts`、`/api/product/admin/sku-batch`、`/api/product/admin/sku-by-ids` | 供 mall-admin 经 Feign 调用的商品管理读取接口；当前路径未被标记为 `/internal/`，授权缺口见下方 |
+| internal-intended | POST/GET | `/api/product/admin/page`、`/api/product/admin/status-counts`、`/api/product/admin/sku-batch`、`/api/product/admin/sku-by-ids` | 供 mall-admin 经 Feign 调用的商品管理读取接口；服务端要求 staff，网关公开白名单不覆盖这些路径 |
 | inventory | POST | `/api/inventory/batch` | 批量查询库存，供 BFF 聚合商品页；当前需要登录但没有 staff 角色限制 |
 | admin | POST | `/api/admin/inventory/adjust`、`/api/admin/inventory/record/page` | **尚未实现**：库存调整与流水分页，当前仅保留在计划/页面占位中 |
 
 ### 管理接口安全状态
 
-网关 `/api/admin/**` 不在白名单内，未登录访问会返回 401；但这只代表**已登录**，不代表客服/运营角色授权。商品和分类/品牌写接口在 `mall-product` 已用 `@RequireStaff(OPERATOR)` 校验。当前待修复的读取授权边界包括：BFF 的商品分页、状态计数、SKU/详情读取没有 staff 校验；对应 `mall-product` 管理读取方法也没有 staff 注解；下游 GET 计数路径还受 `/api/product/**` 匿名白名单覆盖。路径命名和 Feign 使用约定不能代替授权，因此买家可能读取管理数据，修复前不应视为生产就绪。详情和修复建议见需求文档第 30.2。
+网关 `/api/admin/**` 不在白名单内，未登录访问返回 401；BFF 控制器类级别要求 staff，商品管理读取下游也再次要求 staff，商品写入继续要求 `@RequireStaff(OPERATOR)`。公开商品 GET 白名单已拆成具体 C 端路由，不能覆盖 `/api/product/admin/**`。Feign 身份头透传只负责内部调用链，不能替代 BFF 和下游的角色校验。
 
 **后台接口的角色鉴权**：`mall-common` 提供 `@RequireStaff` 注解 + `RequireStaffInterceptor`，
 标在接口或控制器上即生效（401 未登录 / 403 无权限）。角色包含关系**收敛在 `CurrentUser.hasRole` 一处**：
