@@ -4,6 +4,8 @@
 
 ## 当前状态（2026-10-28）
 
+后端当前编译与运行基线为 **JDK 21**。本机已有 JDK 21 时无需准备 JDK 25 的 `PipeImpl` 补丁；历史 JDK 25 兼容性记录保留在需求文档中。
+
 | 部分 | 当前实现 | 尚未覆盖 |
 | :--- | :--- | :--- |
 | 后端 | Spring Cloud Alibaba 微服务；注册/认证、商品与分类品牌、订单、库存基础操作、支付退款、Redis、RocketMQ；`mall-admin` 提供商品管理 BFF；管理读取已补 staff 双层授权 | 管理端库存调整与流水查询、客服订单/退款工作流、数据看板、营销业务 |
@@ -29,7 +31,7 @@
 
 ## 版本管理
 
-当前仓库基线版本为 `0.1.0`。版本号遵循语义化版本，发布时同步更新根目录的 `VERSION` 和 `CHANGELOG.md`，并创建 `vX.Y.Z` Git 标签；日常改动使用短生命周期的 `feature/*` 或 `fix/*` 分支，验证后合并到 `main`。细则见 [VERSIONING.md](VERSIONING.md)。
+当前仓库基线版本为 `0.1.2`。版本号遵循语义化版本，发布时同步更新根目录的 `VERSION` 和 `CHANGELOG.md`，并创建 `vX.Y.Z` Git 标签；日常改动使用短生命周期的 `feature/*` 或 `fix/*` 分支，验证后合并到 `main`。细则见 [VERSIONING.md](VERSIONING.md)。
 
 ## 本地开发入口
 

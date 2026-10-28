@@ -1,14 +1,14 @@
 # SCA-Mail 商场微服务
 
-基于 Spring Cloud Alibaba + JDK 25 的 B2C 商场微服务平台骨架，需求见 [商场微服务项目需求文档（V1.0）.md](./商场微服务项目需求文档（V1.0）.md)。
+基于 Spring Cloud Alibaba + JDK 21 的 B2C 商场微服务平台骨架，需求见 [商场微服务项目需求文档（V1.0）.md](./商场微服务项目需求文档（V1.0）.md)。JDK 21 是当前推荐的本地开发和部署运行时；历史文档中的 JDK 25 记录保留用于追溯早期兼容性排障。
 
-> 需求文档当前为 V1.13，共 30 章。常用入口：用例与业务规则看第十六章、领域边界与 ADR 看第十七章、接口契约与错误码看第十八章、缓存与消息看第十九章、一致性与失败场景看第二十章、安全与 Sa-Token 迁移看第二十一章、测试与验收看第二十三～二十四章、第三阶段落地记录看第二十六～二十九章；**当前实现状态、已知接口/权限缺口与客服 Agent 规划见第三十章**。
+> 需求文档当前为 V1.14，共 30 章。常用入口：用例与业务规则看第十六章、领域边界与 ADR 看第十七章、接口契约与错误码看第十八章、缓存与消息看第十九章、一致性与失败场景看第二十章、安全与 Sa-Token 迁移看第二十一章、测试与验收看第二十三～二十四章、第三阶段落地记录看第二十六～二十九章；**当前实现状态、已知接口/权限缺口与客服 Agent 规划见第三十章**。
 
 ## 技术栈
 
 | 组件 | 版本 |
 | :--- | :--- |
-| JDK | 25 |
+| JDK | 21 |
 | Spring Boot | 4.0.8 |
 | Spring Cloud | 2025.1.3 |
 | Spring Cloud Alibaba | 2025.1.0.0 |
@@ -261,7 +261,7 @@ curl -X POST "http://127.0.0.1:8106/api/pay/internal/reconcile/2026-09-15" -H "X
 - MyBatis 映射文件放在各模块 `src/main/resources/mapper/`，由 `mybatis.mapper-locations` 通配加载。
 - **要在服务里用 mall-common 的 Mapper（消息表），必须在启动类 `@MapperScan` 里同时列出本服务 Mapper 包与 `com.zhe.mall.common.mq`**：MyBatis 的自动扫描只扫启动类所在包；而在别处注册 `MapperScannerConfigurer` / `MapperFactoryBean` 会让自动扫描整体退避，导致业务 Mapper 一起消失（踩坑记录见需求文档 29.6 坑 1）。
 - 订单超时时间与扫描周期可在 `application.yml` 的 `mall.order.*` 下调整（`pay-timeout-minutes`、`timeout-scan.enabled` / `interval-ms`）。注意**超时关单的延时消息固定用 RocketMQ delayLevel=16（30 分钟）**，改成非 30 分钟时由 `OrderTimeoutTask` 兜底纠正（见需求文档 29.7）。
-- 本机 JDK 25 命令行启动 Tomcat / Netty 会因 AF_UNIX 回环被系统策略拦截而失败（`Unable to establish loopback connection`）：`scripts/start-all.ps1` 会自动附加 `--patch-module=java.base=<%TEMP%\pipatch\out>`（可用 `PIPATCH_DIR` 覆盖），也可用 IDEA 启动。
+- 当前推荐使用 JDK 21 启动 Tomcat / Netty，不需要 `java.base` 补丁。若必须使用历史 JDK 25 环境，才需要按需求文档 12.8 准备 `PIPATCH_DIR` 补丁。
 - **RocketMQ broker 的存储路径要在 `broker.conf` 里用正斜杠**（如 `storePathRootDir = E:/rocketmq/store`）：RocketMQ 用 `java.util.Properties` 读配置，反斜杠是转义符，写成 `E:\rocketmq\store` 会因 `\r` 被当成回车而启动失败（见需求文档 29.6 坑 3）。另外 C: 盘使用率超过 `diskMaxUsedSpaceRatio`（默认 90%）时 broker 会拒绝所有写入并返回 CODE 14，本机已把存储迁到 E: 盘。
 
 ## 后续阶段

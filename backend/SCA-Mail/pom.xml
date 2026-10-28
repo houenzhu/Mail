@@ -10,7 +10,7 @@
     <packaging>pom</packaging>
 
     <name>SCA-Mail</name>
-    <description>商场微服务平台（Spring Cloud Alibaba + JDK 25）</description>
+    <description>商场微服务平台（Spring Cloud Alibaba + JDK 21）</description>
 
     <modules>
         <module>mall-dependencies</module>
@@ -28,8 +28,8 @@
     </modules>
 
     <properties>
-        <java.version>25</java.version>
-        <maven.compiler.release>25</maven.compiler.release>
+        <java.version>21</java.version>
+        <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <!-- 仅用于插件版本管理，业务依赖版本统一由 mall-dependencies 维护 -->

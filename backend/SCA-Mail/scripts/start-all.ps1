@@ -10,11 +10,13 @@ New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 
 $patchDir = if ($env:PIPATCH_DIR) { $env:PIPATCH_DIR } else { Join-Path $env:TEMP 'pipatch\out' }
 $jvmArgs = @()
-if (Test-Path (Join-Path $patchDir 'sun\nio\ch\PipeImpl.class')) {
+if ($env:JAVA_HOME -and $env:JAVA_HOME -match 'jdk-?21') {
+    Write-Host ("using JDK 21 runtime: {0}" -f $env:JAVA_HOME)
+} elseif (Test-Path (Join-Path $patchDir 'sun\nio\ch\PipeImpl.class')) {
     $jvmArgs += "--patch-module=java.base=$patchDir"
     Write-Host ("using java.base patch: {0}" -f $patchDir)
 } else {
-    Write-Warning 'java.base patch not found; Tomcat/Netty may not bind on this host (doc 12.8)'
+    Write-Warning 'JDK 21 is recommended. No java.base patch found; JDK 25 Tomcat/Netty may not bind on this host (doc 12.8)'
 }
 
 # 注意：变量名不要叫 $Services——PowerShell 变量名不区分大小写，会覆盖同名参数（曾导致"选了服务却一个都不启动"）
