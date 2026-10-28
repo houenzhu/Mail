@@ -1,0 +1,308 @@
+@import './variables.css';
+
+/* =========================================================================
+   1. 基础重置
+   ========================================================================= */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-size: 13px;
+  color: var(--text-primary);
+  background-color: var(--bg-page);
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--brand-primary);
+  text-decoration: none;
+}
+
+/* 键盘可达性：统一焦点环（不覆盖鼠标点击） */
+:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 1px;
+}
+
+/* =========================================================================
+   2. 页面骨架（所有业务页复用）
+   ========================================================================= */
+
+.page {
+  padding: var(--page-padding);
+}
+
+.page-card {
+  background: var(--bg-white);
+  border: 1px solid var(--border-color-light);
+  border-radius: var(--card-radius);
+  box-shadow: var(--shadow-card);
+  padding: 14px 16px;
+}
+
+.page-card + .page-card {
+  margin-top: 10px;
+}
+
+/* 页头：标题区 + 操作区，两栏对齐 */
+.page-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.page-title {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 22px;
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.page-subtitle {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+.section-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 区块分割标题：左侧品牌短竖条 */
+.section-title::before {
+  content: '';
+  width: 3px;
+  height: 13px;
+  border-radius: 2px;
+  background: var(--brand-primary);
+}
+
+/* =========================================================================
+   3. Element Plus 覆盖：紧凑化 + 弱分割线
+   ========================================================================= */
+
+/* ---------- 表格 ---------- */
+.el-table th.el-table__cell {
+  background-color: var(--el-table-header-bg-color) !important;
+  color: var(--text-regular);
+  font-weight: 500;
+}
+
+.el-table .el-table__cell {
+  padding: 8px 0;
+}
+
+.el-table .cell {
+  line-height: 20px;
+}
+
+/* 去掉表头默认下边框的硬线，交给行分割线 */
+.el-table--border .el-table__inner-wrapper::after,
+.el-table--border::after,
+.el-table--border::before {
+  background-color: var(--el-table-border-color);
+}
+
+.el-table tr:hover > td.el-table__cell {
+  background-color: var(--el-table-row-hover-bg-color);
+}
+
+/* ---------- 表单 ---------- */
+.el-form-item {
+  margin-bottom: 14px;
+}
+
+.el-form-item__label {
+  color: var(--text-regular);
+}
+
+/* ---------- 卡片 ---------- */
+.el-card {
+  border-color: var(--border-color-light);
+  box-shadow: var(--shadow-card) !important;
+}
+
+.el-card__header {
+  padding: 10px 14px;
+  font-weight: 600;
+}
+
+.el-card__body {
+  padding: 14px;
+}
+
+/* ---------- 页签 ---------- */
+.el-tabs__header {
+  margin-bottom: 12px;
+}
+
+.el-tabs__item {
+  height: 38px;
+  line-height: 38px;
+  font-size: 13px;
+  color: var(--text-regular);
+}
+
+.el-tabs__item.is-active {
+  font-weight: 600;
+}
+
+/* ---------- 分页 ---------- */
+.el-pagination.is-background .el-pager li,
+.el-pagination.is-background .btn-prev,
+.el-pagination.is-background .btn-next {
+  border-radius: var(--radius-sm);
+}
+
+/* ---------- 标签 ---------- */
+.el-tag {
+  border-radius: var(--radius-sm);
+}
+
+/* ---------- 空状态 ---------- */
+.el-empty {
+  padding: 28px 0;
+}
+
+.el-empty__description {
+  color: var(--text-secondary);
+}
+
+/* ---------- 折叠态菜单浮层（teleport 到 body，需全局定义） ---------- */
+.el-menu--popup {
+  --el-menu-active-color: var(--brand-primary);
+  --el-menu-hover-bg-color: var(--brand-primary-light);
+  --el-menu-item-height: var(--menu-item-height);
+  border-radius: var(--card-radius);
+  box-shadow: var(--shadow-pop);
+  padding: 4px;
+}
+
+/* =========================================================================
+   4. 通用原子类
+   ========================================================================= */
+
+/* 表格里的操作链接：紧凑排列 */
+.table-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.table-actions .el-button + .el-button {
+  margin-left: 0;
+}
+
+/* 金额：等宽数字，避免跳动 */
+.money {
+  font-variant-numeric: tabular-nums;
+}
+
+.money-strong {
+  color: var(--brand-primary);
+  font-weight: 600;
+}
+
+/* 次要文本 */
+.text-muted {
+  color: var(--text-secondary);
+}
+
+.text-xs {
+  font-size: 12px;
+}
+
+/* 商品单元格：缩略图 + 两行文本 */
+.goods-cell {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.goods-thumb {
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  border-radius: 4px;
+  object-fit: cover;
+  background: var(--border-color-light);
+  border: 1px solid var(--border-color-light);
+}
+
+.goods-thumb-fallback {
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  border-radius: 4px;
+  background: linear-gradient(135deg, #f2f3f5, #e5e6eb);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.goods-meta {
+  min-width: 0;
+}
+
+.goods-name {
+  color: var(--text-primary);
+  line-height: 18px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-all;
+}
+
+.goods-sub {
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+/* =========================================================================
+   5. 滚动条
+   ========================================================================= */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d6d8db;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #c0c3c7;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}

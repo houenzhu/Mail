@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zhe.mall.pay.mapper.PaymentMapper">
+
+    <sql id="baseColumns">
+        payment_no, order_no, user_id, request_id, channel, pay_type, amount, status,
+        channel_trade_no, prepay_id, paid_at, closed_at, expire_at, fail_reason, created_at, updated_at
+    </sql>
+
+    <select id="selectByPaymentNo" resultType="com.zhe.mall.pay.entity.Payment">
+        select <include refid="baseColumns"/>
+        from payment
+        where payment_no = #{paymentNo}
+    </select>
+
+    <select id="selectByOrderRequest" resultType="com.zhe.mall.pay.entity.Payment">
+        select <include refid="baseColumns"/>
+        from payment
+        where order_no = #{orderNo} and request_id = #{requestId}
+    </select>
+
+    <select id="selectLatestPaidByOrderNo" resultType="com.zhe.mall.pay.entity.Payment">
+        select <include refid="baseColumns"/>
+        from payment
+        where order_no = #{orderNo} and status in (20, 50)
+        order by paid_at desc, payment_no desc
+        limit 1
+    </select>
+
+    <!-- 对账本地集：status in (20, 50)。已退款的支付单（50）在渠道流水里依然是一笔成功交易，
+         退款是渠道侧的另一条流水；只取 20 会把"已退款"整批误报成 CHANNEL_ONLY（28.8 口径修正） -->
+    <select id="selectPaidBetween" resultType="com.zhe.mall.pay.entity.Payment">
+        select <include refid="baseColumns"/>
+        from payment
+        where status in (20, 50) and paid_at &gt;= #{from} and paid_at &lt; #{to}
+        order by paid_at
+    </select>
+
+    <select id="selectQueryCandidates" resultType="string">
+        select payment_no
+        from payment
+        where status = 10 and (expire_at is null or expire_at &gt; now(3))
+        order by updated_at
+        limit #{limit}
+    </select>
+
+    <select id="selectExpiredCandidates" resultType="string">
+        select payment_no
+        from payment
+        where status in (0, 10) and expire_at is not null and expire_at &lt; now(3)
+        order by expire_at
+        limit #{limit}
+    </select>
+
+    <insert id="insert">
+        insert into payment (payment_no, order_no, user_id, request_id, channel, pay_type, amount, status,
+                             channel_trade_no, prepay_id, expire_at)
+        values (#{paymentNo}, #{orderNo}, #{userId}, #{requestId}, #{channel}, #{payType}, #{amount}, #{status},
+                #{channelTradeNo}, #{prepayId}, #{expireAt})
+    </insert>
+
+    <update id="updateStatus">
+        update payment
+        set status = #{status}
+        where payment_no = #{paymentNo} and status = #{expectStatus}
+    </update>
+
+    <update id="markPaid">
+        update payment
+        set status = #{status}, channel_trade_no = #{channelTradeNo}, paid_at = #{paidAt}
+        where payment_no = #{paymentNo} and status in (0, 10)
+    </update>
+
+    <update id="markFailed">
+        update payment
+        set status = #{status}, fail_reason = #{failReason}
+        where payment_no = #{paymentNo} and status in (0, 10)
+    </update>
+
+    <update id="markRefunded">
+        update payment
+        set status = #{status}
+        where payment_no = #{paymentNo} and status = #{expectStatus}
+    </update>
+
+    <update id="closeOpenByOrderNo">
+        update payment
+        set status = #{status}, closed_at = #{closedAt}
+        where order_no = #{orderNo} and status in (0, 10)
+    </update>
+
+    <update id="closeExpired">
+        update payment
+        set status = #{status}, closed_at = now(3)
+        where payment_no = #{paymentNo} and status in (0, 10)
+    </update>
+</mapper>

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zhe.mall.pay.mapper.PaymentCallbackLogMapper">
+
+    <sql id="baseColumns">
+        id, payment_no, channel, event_type, channel_trade_no, amount, sign_valid,
+        process_result, raw_body, remote_ip, created_at
+    </sql>
+
+    <insert id="insert">
+        insert into payment_callback_log (id, payment_no, channel, event_type, channel_trade_no, amount,
+                                          sign_valid, process_result, raw_body, remote_ip)
+        values (#{id}, #{paymentNo}, #{channel}, #{eventType}, #{channelTradeNo}, #{amount},
+                #{signValid}, #{processResult}, #{rawBody}, #{remoteIp})
+    </insert>
+
+    <select id="selectByPaymentNo" resultType="com.zhe.mall.pay.entity.PaymentCallbackLog">
+        select <include refid="baseColumns"/>
+        from payment_callback_log
+        where payment_no = #{paymentNo}
+        order by created_at desc, id desc
+        limit 50
+    </select>
+    <update id="updateProcessResult">
+        update payment_callback_log
+        set process_result = #{processResult}
+        where id = #{id}
+    </update>
+</mapper>

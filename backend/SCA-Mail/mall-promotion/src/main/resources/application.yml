@@ -1,0 +1,38 @@
+server:
+  port: 8107
+
+spring:
+  application:
+    name: mall-promotion
+  cloud:
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+      discovery:
+        namespace: ${NACOS_NAMESPACE:}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+      config:
+        namespace: ${NACOS_NAMESPACE:}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+        file-extension: yaml
+  config:
+    import:
+      - optional:nacos:${spring.application.name}.yaml
+
+
+mall:
+  auth:
+    # 与网关、mall-auth 保持一致；未配置时服务端不采信任何身份头（fail-closed，见 21.2）
+    internal-token: ${INTERNAL_TOKEN:}
+
+logging:
+  pattern:
+    level: "%5p [${spring.application.name:},%X{traceId:-}]"
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always

@@ -1,0 +1,92 @@
+/**
+ * 设计令牌（Design Tokens）
+ *
+ * 方向：电商商家后台（千牛/淘宝商家中心）——信息密度高、弱分割线、橙色品牌点。
+ * 本文件是整个后台的「唯一主题源」：只在这里定义一次，页面与组件通过 var() 消费；
+ * 禁止在业务组件里写死颜色（状态色除外，见 constants/dict.js 的 tag 语义）。
+ *
+ * ⚠️ 加载顺序：main.js 先引 Element Plus 官方样式、再引本文件（见 index.css 的 @import）。
+ *    两者都是 :root 选择器，靠后的声明胜出，顺序颠倒会导致主色被覆盖回默认蓝。
+ */
+:root {
+  /* ---------- 品牌色：淘宝/千牛系橙 ---------- */
+  --brand-primary: #ff5000;
+  --brand-primary-hover: #ff6a1f;
+  --brand-primary-active: #e64600;
+  --brand-primary-light: #fff2ec; /* 选中/浅底 */
+  --brand-primary-lighter: #fff8f5; /* 极浅底，用于 hover 行 */
+
+  /* ---------- 功能色 ---------- */
+  --c-success: #00b42a;
+  --c-warning: #ff7d00;
+  --c-danger: #f53f3f;
+  --c-info: #86909c;
+
+  /* ---------- 中性色 ---------- */
+  --text-primary: #1d2129;
+  --text-regular: #4e5969;
+  --text-secondary: #86909c;
+  --text-placeholder: #c9cdd4;
+
+  --border-color: #e5e6eb;
+  --border-color-light: #f2f3f5;
+  --bg-page: #f4f5f7;
+  --bg-white: #ffffff;
+  --bg-hover: #f7f8fa;
+
+  /* ---------- 布局尺寸 ---------- */
+  --sidebar-width: 188px;
+  --sidebar-width-collapsed: 56px;
+  --header-height: 48px;
+  --tabbar-height: 38px;
+
+  /* ---------- 密度：后台紧凑化 ---------- */
+  --page-padding: 12px;
+  --card-radius: 6px;
+  --radius-sm: 3px;
+  --row-height: 40px;
+  --menu-item-height: 38px;
+
+  /* ---------- 层级：极轻投影，弱分割线观感 ---------- */
+  --shadow-card: 0 1px 2px rgba(29, 33, 41, 0.04);
+  --shadow-hover: 0 2px 8px rgba(29, 33, 41, 0.08);
+  --shadow-pop: 0 6px 20px rgba(29, 33, 41, 0.12);
+
+  /* ---------- 动效 ---------- */
+  --transition-fast: 0.15s ease;
+  --transition-base: 0.2s ease;
+
+  /* ---------- 侧栏菜单交互态（供 AppSidebar 消费） ---------- */
+  --menu-active-bar: 3px;
+  --menu-active-bg: var(--brand-primary-light);
+
+  /* ---------- 覆盖 Element Plus 主色 ---------- */
+  --el-color-primary: #ff5000;
+  --el-color-primary-light-3: #ff8347;
+  --el-color-primary-light-5: #ffa87a;
+  --el-color-primary-light-7: #ffcdb3;
+  --el-color-primary-light-8: #ffded0;
+  --el-color-primary-light-9: #fff2ec;
+  --el-color-primary-dark-2: #e64600;
+
+  /* ---------- 覆盖 Element Plus 基础观感 ---------- */
+  --el-border-radius-base: 4px;
+  --el-border-radius-small: 3px;
+  --el-font-size-base: 13px;
+  --el-text-color-primary: #1d2129;
+  --el-text-color-regular: #4e5969;
+  --el-text-color-secondary: #86909c;
+  --el-border-color: #e5e6eb;
+  --el-border-color-light: #f2f3f5;
+  --el-border-color-lighter: #f2f3f5;
+  --el-fill-color-light: #f7f8fa;
+  --el-fill-color-lighter: #fafbfc;
+  --el-bg-color-page: #f4f5f7;
+  --el-box-shadow-light: 0 1px 2px rgba(29, 33, 41, 0.04);
+
+  /* 表格：弱化分割线、增强悬停 */
+  --el-table-border-color: #f0f1f3;
+  --el-table-header-bg-color: #fafbfc;
+  --el-table-header-text-color: #4e5969;
+  --el-table-row-hover-bg-color: #fff8f5;
+}

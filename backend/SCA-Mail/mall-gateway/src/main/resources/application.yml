@@ -1,0 +1,125 @@
+server:
+  port: 10000
+
+spring:
+  application:
+    name: mall-gateway
+  cloud:
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+      discovery:
+        namespace: ${NACOS_NAMESPACE:}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+      config:
+        namespace: ${NACOS_NAMESPACE:}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+        file-extension: yaml
+    gateway:
+      server:
+        webflux:
+          discovery:
+            locator:
+              enabled: false
+          routes:
+            - id: mall-auth
+              uri: lb://mall-auth
+              predicates:
+                - Path=/api/auth/**
+            - id: mall-user
+              uri: lb://mall-user
+              predicates:
+                - Path=/api/user/**
+            - id: mall-product
+              uri: lb://mall-product
+              predicates:
+                - Path=/api/product/**
+            - id: mall-inventory
+              uri: lb://mall-inventory
+              predicates:
+                - Path=/api/inventory/**
+            - id: mall-order
+              uri: lb://mall-order
+              predicates:
+                - Path=/api/order/**
+            - id: mall-pay
+              uri: lb://mall-pay
+              predicates:
+                - Path=/api/pay/**
+            - id: mall-promotion
+              uri: lb://mall-promotion
+              predicates:
+                - Path=/api/promotion/**
+            # 后台 BFF（8111）：后台管理端唯一入口，聚合各服务的后台数据能力。
+            # 该前缀不在鉴权白名单里，因此未登录访问一律 401（见需求文档 21.2 / 655 行约定）。
+            - id: mall-admin
+              uri: lb://mall-admin
+              predicates:
+                - Path=/api/admin/**
+  data:
+    redis:
+      host: ${REDIS_HOST:192.168.198.133}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:1}
+      timeout: 2s
+      connect-timeout: 2s
+  config:
+    import:
+      - optional:nacos:${spring.application.name}.yaml
+
+# Sa-Token 会话（21.8.7 / ADR-025）：令牌由 mall-auth 的 StpUtil 签发，网关按同一 Redis 判定身份
+sa-token:
+  # 注意：token-name 同时是 Redis key 命名空间（{token-name}:{loginType}:token:{值}），不要改，
+  # 否则会与 mall-auth 写入的会话 key 不一致。对外仍走 Authorization: Bearer，
+  # 由 AuthorizationTokenRelayFilter 转发成该头（18.1 契约不变）。
+  token-name: satoken
+  token-prefix: Bearer
+  is-read-header: true
+  is-read-cookie: false
+  # 不透明 UUID 令牌 + Redis 会话
+  token-style: uuid
+  is-concurrent: ${SA_TOKEN_CONCURRENT:true}
+  is-share: false
+  # 访问令牌固定 300s 到期，与 21.1 的 accessToken 口径一致；续期走 /api/auth/refresh，不做滑动续期
+  timeout: ${SA_TOKEN_TIMEOUT:300}
+  # 关闭活跃超时：一旦开启，签发侧必须同时维护 last-active key，否则校验侧会判为「令牌已被冻结」
+  active-timeout: -1
+  auto-renew: false
+  is-log: false
+
+mall:
+  auth:
+    # 网关鉴权开关（关闭时仅透传 traceId，仅限本地调试）
+    enabled: ${AUTH_ENABLED:true}
+    # 身份头可信证明，同时由服务端校验（直连服务时伪造身份头无效）
+    internal-token: ${INTERNAL_TOKEN:}
+    # 格式：METHOD:/路径（省略 METHOD 表示放行所有方法）
+    whitelist:
+      # CORS 预检：浏览器发起的跨域请求会先发 OPTIONS，此时不会带 Authorization。
+      # 必须放行，否则预检被拦成 401（前端看到的是 401 而不是 CORS 报错，极难排查，见 21.9.5）。
+      # 真正的短路由 GatewayCorsConfig 的 CorsWebFilter 完成，这里只是第二道保障。
+      - OPTIONS:/**
+      - POST:/api/auth/login
+      - POST:/api/auth/register
+      - POST:/api/auth/refresh
+      - GET:/api/product/**
+      - GET:/api/search/**
+      - GET:/actuator/**
+      # 渠道回调：渠道侧没有用户令牌，白名单是唯一可行入口，安全由验签 + 时间窗 + 回调流水唯一索引保证（ADR-021）
+      - POST:/api/pay/callback/**
+    # 跨域（生产请用 CORS_ALLOWED_ORIGIN_PATTERNS 收敛为具体域名，不要长期保留 *）
+    cors:
+      allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:*}
+      allow-credentials: ${CORS_ALLOW_CREDENTIALS:true}
+logging:
+  pattern:
+    level: "%5p [${spring.application.name:},%X{traceId:-}]"
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway
+  endpoint:
+    health:
+      show-details: always

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.zhe</groupId>
+        <artifactId>SCA-Mail</artifactId>
+        <version>1.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>mall-api</artifactId>
+    <name>mall-api</name>
+    <description>服务间调用接口定义（Feign / Dubbo）</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.zhe</groupId>
+            <artifactId>mall-common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-openfeign</artifactId>
+        </dependency>
+        <!-- 契约 DTO 上的校验注解（@NotBlank/@NotNull 等）：请求体类型由 BFF 与下游共享一份，
+             校验注解必须跟着 DTO 一起共享，否则两端对"什么算合法请求"的理解会漂移。
+             只依赖 jakarta 的注解 API（版本由 spring-boot BOM 管理），不引入任何实现。 -->
+        <dependency>
+            <groupId>jakarta.validation</groupId>
+            <artifactId>jakarta.validation-api</artifactId>
+        </dependency>
+    </dependencies>
+</project>

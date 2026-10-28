@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zhe.mall.order.mapper.OrderItemMapper">
+
+    <sql id="baseColumns">
+        id, order_no, user_id, sku_id, product_id, product_name, sku_spec, price, qty, total_amount, created_at
+    </sql>
+
+    <select id="selectByOrderNo" resultType="com.zhe.mall.order.entity.OrderItem">
+        select <include refid="baseColumns"/>
+        from order_item
+        where order_no = #{orderNo}
+        order by id
+    </select>
+
+    <insert id="insertBatch">
+        insert into order_item (id, order_no, user_id, sku_id, product_id, product_name, sku_spec, price, qty, total_amount)
+        values
+        <foreach collection="items" item="item" separator=",">
+            (#{item.id}, #{item.orderNo}, #{item.userId}, #{item.skuId}, #{item.productId}, #{item.productName},
+             #{item.skuSpec}, #{item.price}, #{item.qty}, #{item.totalAmount})
+        </foreach>
+    </insert>
+</mapper>

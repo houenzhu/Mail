@@ -1,0 +1,50 @@
+server:
+  port: 8111
+
+spring:
+  application:
+    name: mall-admin
+  cloud:
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+      discovery:
+        namespace: ${NACOS_NAMESPACE:}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+      config:
+        namespace: ${NACOS_NAMESPACE:}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+        file-extension: yaml
+    openfeign:
+      client:
+        config:
+          default:
+            connect-timeout: 1000
+            read-timeout: 5000
+  config:
+    import:
+      - optional:nacos:${spring.application.name}.yaml
+
+# 说明：mall-admin 是纯聚合 BFF，**没有自己的数据库**（见计划文档 ADR-N1）：
+# 它不发令牌也不存业务数据，只把网关注入的身份头继续透传给下游服务。
+
+mybatis:
+  # 本服务不连库；此处仅为避免其他服务的配置经 Nacos 误导入时找不到 mapper 而报错
+  mapper-locations: classpath*:mapper/*.xml
+
+mall:
+  auth:
+    # 与网关、各业务服务保持一致；下游服务只信任携带该令牌的请求
+    internal-token: ${INTERNAL_TOKEN:}
+
+logging:
+  pattern:
+    level: "%5p [${spring.application.name:},%X{traceId:-}]"
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always

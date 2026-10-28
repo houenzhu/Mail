@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zhe.mall.product.mapper.CategoryMapper">
+
+    <sql id="baseColumns">
+        id, parent_id, name, level, sort_no, status, deleted, created_at, updated_at
+    </sql>
+
+    <select id="selectAll" resultType="com.zhe.mall.product.entity.Category">
+        select <include refid="baseColumns"/>
+        from category
+        where deleted = 0 and status = 1
+        order by level, sort_no, id
+    </select>
+
+    <!-- 不做 status 过滤：编辑时要能回显一个已被停用的分类 -->
+    <select id="selectById" resultType="com.zhe.mall.product.entity.Category">
+        select <include refid="baseColumns"/>
+        from category
+        where id = #{id} and deleted = 0
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        insert into category (parent_id, name, level, sort_no, status, deleted)
+        values (#{parentId}, #{name}, #{level}, #{sortNo}, #{status}, 0)
+    </insert>
+
+    <update id="update">
+        update category
+        set parent_id = #{parentId},
+            name = #{name},
+            level = #{level},
+            sort_no = #{sortNo},
+            status = #{status}
+        where id = #{id} and deleted = 0
+    </update>
+
+    <update id="softDelete">
+        update category set deleted = 1 where id = #{id} and deleted = 0
+    </update>
+
+    <select id="countByNameExcluding" resultType="int">
+        select count(1) from category
+        where parent_id = #{parentId}
+        and name = #{name}
+        <if test="excludeId != null">
+            and id != #{excludeId}
+        </if>
+    </select>
+
+    <select id="countChildByParentId" resultType="int">
+        select count(1) from category where parent_id = #{parentId} and deleted = 0
+    </select>
+
+    <select id="countProductsByCategoryId" resultType="int">
+        select count(1) from product where category_id = #{categoryId} and deleted = 0
+    </select>
+</mapper>

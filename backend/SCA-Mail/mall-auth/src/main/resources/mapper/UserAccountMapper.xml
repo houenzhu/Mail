@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zhe.mall.auth.mapper.UserAccountMapper">
+
+    <sql id="baseColumns">
+        user_id, username, phone, phone_hash, password_hash, nickname, roles, status,
+        fail_count, lock_until, last_login_at, created_at, updated_at
+    </sql>
+
+    <select id="selectById" resultType="com.zhe.mall.auth.entity.UserAccount">
+        select <include refid="baseColumns"/> from user_account where user_id = #{userId}
+    </select>
+
+    <select id="selectByUsername" resultType="com.zhe.mall.auth.entity.UserAccount">
+        select <include refid="baseColumns"/> from user_account where username = #{username}
+    </select>
+
+    <select id="selectByPhoneHash" resultType="com.zhe.mall.auth.entity.UserAccount">
+        select <include refid="baseColumns"/> from user_account where phone_hash = #{phoneHash}
+    </select>
+
+    <insert id="insert">
+        insert into user_account (user_id, username, phone, phone_hash, password_hash, nickname, roles, status)
+        values (#{userId}, #{username}, #{phone}, #{phoneHash}, #{passwordHash}, #{nickname}, #{roles}, #{status})
+    </insert>
+
+    <update id="updateLoginSuccess">
+        update user_account
+        set fail_count = 0, status = 1, lock_until = null, last_login_at = #{lastLoginAt}
+        where user_id = #{userId}
+    </update>
+
+    <update id="updateLoginFail">
+        update user_account
+        set fail_count = #{failCount}, status = #{status}, lock_until = #{lockUntil}
+        where user_id = #{userId}
+    </update>
+</mapper>

@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zhe.mall.product.mapper.ProductMapper">
+
+    <sql id="baseColumns">
+        id, name, subtitle, category_id, brand_id, main_image, price_min, price_max,
+        sales, detail, status, deleted, created_at, updated_at
+    </sql>
+
+    <sql id="pageCondition">
+        <where>
+            <choose>
+                <when test="query.deleted != null">
+                    deleted = #{query.deleted}
+                </when>
+                <otherwise>
+                    deleted = 0
+                </otherwise>
+            </choose>
+            <if test="query.productId != null">
+                and id = #{query.productId}
+            </if>
+            <if test="query.categoryId != null">
+                and category_id = #{query.categoryId}
+            </if>
+            <if test="query.brandId != null">
+                and brand_id = #{query.brandId}
+            </if>
+            <if test="query.status != null">
+                and status = #{query.status}
+            </if>
+            <if test="query.keyword != null and query.keyword != ''">
+                and (name like concat('%', #{query.keyword}, '%')
+                     or subtitle like concat('%', #{query.keyword}, '%'))
+            </if>
+        </where>
+    </sql>
+
+    <select id="selectById" resultType="com.zhe.mall.product.entity.Product">
+        select <include refid="baseColumns"/>
+        from product
+        where id = #{id} and deleted = 0
+    </select>
+
+    <select id="selectPage" resultType="com.zhe.mall.product.entity.Product">
+        select <include refid="baseColumns"/>
+        from product
+        <include refid="pageCondition"/>
+        order by id desc
+        limit #{limit} offset #{offset}
+    </select>
+
+    <select id="countPage" resultType="long">
+        select count(1) from product
+        <include refid="pageCondition"/>
+    </select>
+
+    <!-- 管理端 Tab 角标：一次拿到各状态数量（全部/出售中/仓库中），避免前端发多个 count 请求 -->
+    <select id="countGroupByStatus" resultType="java.util.Map">
+        select status as status, count(1) as cnt
+        from product
+        <where>
+            <choose>
+                <when test="deleted != null">
+                    deleted = #{deleted}
+                </when>
+                <otherwise>
+                    deleted = 0
+                </otherwise>
+            </choose>
+        </where>
+        group by status
+    </select>
+
+    <update id="softDelete">
+        update product set deleted = 1 where id = #{id} and deleted = 0
+    </update>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        insert into product (name, subtitle, category_id, brand_id, main_image, price_min, price_max, sales, detail, status, deleted)
+        values (#{name}, #{subtitle}, #{categoryId}, #{brandId}, #{mainImage}, #{priceMin}, #{priceMax}, #{sales}, #{detail}, #{status}, 0)
+    </insert>
+
+    <!-- 编辑：只更新可编辑字段，sales/deleted/price_min/price_max 均不在此语句内（见 ProductMapper#update 注释） -->
+    <update id="update">
+        update product
+        set name = #{name},
+            subtitle = #{subtitle},
+            category_id = #{categoryId},
+            brand_id = #{brandId},
+            main_image = #{mainImage},
+            detail = #{detail},
+            status = #{status}
+        where id = #{id} and deleted = 0
+    </update>
+
+    <update id="updateStatus">
+        update product set status = #{status} where id = #{id} and deleted = 0
+    </update>
+
+    <update id="updatePriceRange">
+        update product set price_min = #{priceMin}, price_max = #{priceMax} where id = #{id} and deleted = 0
+    </update>
+</mapper>

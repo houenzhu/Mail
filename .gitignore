@@ -1,0 +1,36 @@
+# Local environment and credentials
+.env
+.env.*
+!.env.example
+!.env.*.example
+# These frontend files contain only non-secret local/proxy settings.
+!front/vue-admin-web/.env.development
+!front/vue-admin-web/.env.production
+
+# Java / Maven build output
+**/target/
+**/build/
+*.class
+*.log
+logs/
+/backend/SCA-Mail/META-INF/
+
+# Node / Vite output
+**/node_modules/
+**/dist/
+**/dist-ssr/
+**/coverage/
+**/.npm-cache/
+**/verify-out/
+
+# IDE and operating-system files
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.DS_Store
+Thumbs.db
+
+# Local temporary files
+**/.tmp/

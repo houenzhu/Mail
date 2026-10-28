@@ -1,0 +1,94 @@
+server:
+  port: 8101
+
+spring:
+  application:
+    name: mall-auth
+  cloud:
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+      discovery:
+        namespace: ${NACOS_NAMESPACE:}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+      config:
+        namespace: ${NACOS_NAMESPACE:}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+        file-extension: yaml
+    openfeign:
+      client:
+        config:
+          default:
+            connect-timeout: 1000
+            read-timeout: 5000
+  config:
+    import:
+      - optional:nacos:${spring.application.name}.yaml
+  data:
+    redis:
+      host: ${REDIS_HOST:192.168.198.133}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:1}
+      timeout: 2s
+      connect-timeout: 2s
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+          min-idle: 0
+          max-wait: 1s
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/mall_auth?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:}
+
+mybatis:
+  mapper-locations: classpath*:mapper/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
+# Sa-Token 会话（21.8.7 / ADR-025）：配置必须与 mall-gateway 一致，否则网关判定不了令牌
+sa-token:
+  # 注意：token-name 同时是 Redis key 命名空间（{token-name}:{loginType}:token:{值}），不要改
+  token-name: satoken
+  token-prefix: Bearer
+  is-read-header: true
+  is-read-cookie: false
+  # 令牌通过响应体返回，不写 cookie / 响应头
+  is-lasting-cookie: false
+  is-write-header: false
+  token-style: uuid
+  # 访问令牌固定 300s 到期；续期走 /api/auth/refresh，不做滑动续期
+  timeout: ${SA_TOKEN_TIMEOUT:300}
+  active-timeout: -1
+  auto-renew: false
+  is-concurrent: true
+  is-share: false
+  is-log: false
+
+mall:
+  auth:
+    # refreshToken 7d（21.1）
+    refresh-ttl-seconds: ${SA_TOKEN_REFRESH_TTL_SECONDS:604800}
+    # 内部接口凭据，与网关、mall-user 保持一致
+    internal-token: ${INTERNAL_TOKEN:}
+    # 手机号哈希盐值，必须与 sql/07_seed_user_auth.sql 中的默认盐一致
+    phone-salt: ${PHONE_SALT:mall-dev-phone-salt}
+    login-fail-lock:
+      # 连续失败 5 次锁定 15 分钟（21.4 / 26.5）
+      max-fail-count: ${LOGIN_MAX_FAIL_COUNT:5}
+      lock-minutes: ${LOGIN_LOCK_MINUTES:15}
+
+logging:
+  pattern:
+    level: "%5p [${spring.application.name:},%X{traceId:-}]"
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always

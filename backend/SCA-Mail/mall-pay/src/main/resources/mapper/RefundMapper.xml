@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zhe.mall.pay.mapper.RefundMapper">
+
+    <sql id="baseColumns">
+        refund_no, payment_no, order_no, user_id, amount, status, active_key, reason, operator, operator_id,
+        channel_refund_no, applied_at, finished_at, fail_reason, created_at, updated_at
+    </sql>
+
+    <select id="selectByRefundNo" resultType="com.zhe.mall.pay.entity.Refund">
+        select <include refid="baseColumns"/>
+        from refund
+        where refund_no = #{refundNo}
+    </select>
+
+    <select id="selectByActiveKey" resultType="com.zhe.mall.pay.entity.Refund">
+        select <include refid="baseColumns"/>
+        from refund
+        where active_key = #{activeKey}
+    </select>
+
+    <select id="selectActiveByOrderNo" resultType="com.zhe.mall.pay.entity.Refund">
+        select <include refid="baseColumns"/>
+        from refund
+        where order_no = #{orderNo} and status in (10, 20)
+        order by created_at desc, refund_no desc
+        limit 1
+    </select>
+
+    <insert id="insert">        insert into refund (refund_no, payment_no, order_no, user_id, amount, status, active_key, reason,
+                            operator, operator_id, applied_at)
+        values (#{refundNo}, #{paymentNo}, #{orderNo}, #{userId}, #{amount}, #{status}, #{activeKey}, #{reason},
+                #{operator}, #{operatorId}, #{appliedAt})
+    </insert>
+
+    <update id="markSuccess">
+        update refund
+        set status = #{status}, channel_refund_no = #{channelRefundNo}, finished_at = #{finishedAt}
+        where refund_no = #{refundNo} and status = #{expectStatus}
+    </update>
+
+    <update id="markFailed">
+        update refund
+        set status = #{status}, fail_reason = #{failReason}, finished_at = #{finishedAt}, active_key = null
+        where refund_no = #{refundNo} and status = #{expectStatus}
+    </update>
+</mapper>

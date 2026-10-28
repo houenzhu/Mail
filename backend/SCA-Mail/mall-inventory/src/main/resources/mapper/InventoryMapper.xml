@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zhe.mall.inventory.mapper.InventoryMapper">
+
+    <select id="selectById" resultType="com.zhe.mall.inventory.entity.Inventory">
+        select sku_id, total, locked, available, warn_threshold, version, created_at, updated_at
+        from inventory
+        where sku_id = #{skuId}
+    </select>
+
+    <select id="selectByIds" resultType="com.zhe.mall.inventory.entity.Inventory">
+        select sku_id, total, locked, available, warn_threshold, version, created_at, updated_at
+        from inventory
+        where sku_id in
+        <foreach collection="skuIds" item="skuId" open="(" separator="," close=")">
+            #{skuId}
+        </foreach>
+    </select>
+
+    <update id="deduct">
+        update inventory
+        set available = available - #{qty}, version = version + 1
+        where sku_id = #{skuId} and available >= #{qty}
+    </update>
+
+    <update id="rollback">
+        update inventory
+        set available = available + #{qty}, version = version + 1
+        where sku_id = #{skuId} and available + #{qty} &lt;= total
+    </update>
+
+    <insert id="init">
+        insert into inventory (sku_id, total, locked, available, warn_threshold, version)
+        values (#{skuId}, #{qty}, 0, #{qty}, #{warnThreshold}, 0)
+        on duplicate key update
+            total = values(total),
+            locked = 0,
+            available = values(total),
+            warn_threshold = values(warn_threshold),
+            version = 0
+    </insert>
+</mapper>

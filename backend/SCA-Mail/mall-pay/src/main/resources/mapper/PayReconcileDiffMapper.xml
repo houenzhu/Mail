@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zhe.mall.pay.mapper.PayReconcileDiffMapper">
+
+    <sql id="baseColumns">
+        id, biz_date, payment_no, channel_trade_no, diff_type, detail, status, created_at
+    </sql>
+
+    <insert id="insert">
+        insert into pay_reconcile_diff (id, biz_date, payment_no, channel_trade_no, diff_type, detail, status)
+        values (#{id}, #{bizDate}, #{paymentNo}, #{channelTradeNo}, #{diffType}, #{detail}, #{status})
+    </insert>
+
+    <select id="selectByBizDate" resultType="com.zhe.mall.pay.entity.PayReconcileDiff">
+        select <include refid="baseColumns"/>
+        from pay_reconcile_diff
+        where biz_date = #{bizDate}
+        order by id
+    </select>
+</mapper>

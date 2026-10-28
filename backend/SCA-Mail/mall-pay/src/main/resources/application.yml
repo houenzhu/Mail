@@ -1,0 +1,113 @@
+server:
+  port: 8106
+
+spring:
+  application:
+    name: mall-pay
+  cloud:
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+      discovery:
+        namespace: ${NACOS_NAMESPACE:}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+      config:
+        namespace: ${NACOS_NAMESPACE:}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+        file-extension: yaml
+    openfeign:
+      client:
+        config:
+          default:
+            connect-timeout: 1000
+            read-timeout: 5000
+  data:
+    redis:
+      host: ${REDIS_HOST:192.168.198.133}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:1}
+      timeout: 2s
+      connect-timeout: 2s
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+          min-idle: 0
+          max-wait: 1s
+  config:
+    import:
+      - optional:nacos:${spring.application.name}.yaml
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/mall_pay?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:}
+
+mybatis:
+  mapper-locations: classpath*:mapper/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
+mall:
+  auth:
+    # 与网关、mall-auth 保持一致；未配置时服务端不采信任何身份头（fail-closed，见 21.2）
+    internal-token: ${INTERNAL_TOKEN:}
+  # 支付幂等标记（28.3.5）
+  idem:
+    ttl-hours: ${PAY_IDEM_TTL_HOURS:24}
+    pending-ttl-seconds: ${PAY_IDEM_PENDING_TTL_SECONDS:60}
+  pay:
+    channel:
+      # 渠道码：本阶段只实现 MOCK（ADR-019）
+      code: ${PAY_CHANNEL_CODE:MOCK}
+      # 渠道密钥：生产走环境变量 / 配置中心，禁止入库、禁止打日志（28.4）
+      secret: ${PAY_CHANNEL_SECRET:}
+      # 渠道回调地址（记录用途；Mock 通道不发起真实回调）
+      notify-url: ${PAY_CHANNEL_NOTIFY_URL:http://127.0.0.1:10000/api/pay/callback/MOCK}
+    callback:
+      # 时间窗：|now - timestamp| <= tolerance-seconds，超出返回 35008（28.6）
+      tolerance-seconds: ${PAY_CALLBACK_TOLERANCE_SECONDS:300}
+    # 回调丢失兜底：扫描 status = 10 且未超时的支付单，查渠道状态并对齐（ADR-023）
+    query:
+      enabled: ${PAY_QUERY_ENABLED:true}
+      interval-ms: ${PAY_QUERY_INTERVAL_MS:60000}
+      initial-delay-ms: ${PAY_QUERY_INITIAL_DELAY_MS:60000}
+      batch-size: ${PAY_QUERY_BATCH_SIZE:500}
+    # 支付单超时关闭（28.8）
+    close-expired:
+      enabled: ${PAY_CLOSE_EXPIRED_ENABLED:true}
+      interval-ms: ${PAY_CLOSE_EXPIRED_INTERVAL_MS:60000}
+      initial-delay-ms: ${PAY_CLOSE_EXPIRED_INITIAL_DELAY_MS:30000}
+      batch-size: ${PAY_CLOSE_EXPIRED_BATCH_SIZE:500}
+    # 每日对账（22.10 / 28.8）
+    reconcile:
+      enabled: ${PAY_RECONCILE_ENABLED:true}
+      cron: ${PAY_RECONCILE_CRON:0 0 2 * * ?}
+    # 对账与查询任务共用的占位：渠道返回 UNKNOWN 时的处理口径
+    zero-amount: 0.00
+  # RocketMQ（第三阶段第 7 项，见需求文档 19.6 / 20.3）
+  mq:
+    enabled: ${MALL_MQ_ENABLED:true}
+    name-server: ${ROCKETMQ_NAME_SERVER:127.0.0.1:9876}
+    # 支付侧只生产（支付成功通知订单），消费端默认关闭
+    outbox:
+      enabled: ${MALL_MQ_OUTBOX_ENABLED:true}
+      interval-ms: ${MALL_MQ_OUTBOX_INTERVAL_MS:30000}
+      initial-delay-ms: ${MALL_MQ_OUTBOX_INITIAL_DELAY_MS:15000}
+      batch-size: ${MALL_MQ_OUTBOX_BATCH_SIZE:200}
+      max-retry: ${MALL_MQ_OUTBOX_MAX_RETRY:3}
+    consumer:
+      enabled: ${MALL_MQ_CONSUMER_ENABLED:false}
+
+logging:
+  pattern:
+    level: "%5p [${spring.application.name:},%X{traceId:-}]"
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always

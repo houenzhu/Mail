@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zhe.mall.product.mapper.ProductSkuMapper">
+
+    <sql id="baseColumns">
+        id, product_id, sku_code, name, spec_json, price, market_price, image,
+        status, deleted, created_at, updated_at
+    </sql>
+
+    <select id="selectById" resultType="com.zhe.mall.product.entity.ProductSku">
+        select <include refid="baseColumns"/>
+        from product_sku
+        where id = #{id} and deleted = 0
+    </select>
+
+    <select id="selectByProductId" resultType="com.zhe.mall.product.entity.ProductSku">
+        select <include refid="baseColumns"/>
+        from product_sku
+        where product_id = #{productId} and deleted = 0
+        order by id
+    </select>
+
+    <!-- 管理端列表：一次取回整页商品的 SKU，避免逐商品查询（N+1） -->
+    <select id="selectByProductIds" resultType="com.zhe.mall.product.entity.ProductSku">
+        select <include refid="baseColumns"/>
+        from product_sku
+        where deleted = 0
+        and product_id in
+        <foreach collection="productIds" item="productId" open="(" separator="," close=")">
+            #{productId}
+        </foreach>
+        order by product_id, id
+    </select>
+
+    <select id="selectBySkuIds" resultType="com.zhe.mall.product.entity.ProductSku">
+        select <include refid="baseColumns"/>
+        from product_sku
+        where deleted = 0
+        and id in
+        <foreach collection="skuIds" item="skuId" open="(" separator="," close=")">
+            #{skuId}
+        </foreach>
+        order by id
+    </select>
+
+    <select id="countBySkuCode" resultType="int">
+        select count(1) from product_sku where sku_code = #{skuCode}
+    </select>
+
+    <!-- 编辑商品：排除自身后查重（否则"没改编码的已有 SKU"会被误判为重复） -->
+    <select id="countBySkuCodeExcluding" resultType="int">
+        select count(1) from product_sku
+        where sku_code = #{skuCode}
+        <if test="excludeSkuId != null">
+            and id != #{excludeSkuId}
+        </if>
+    </select>
+
+    <insert id="insertBatch" useGeneratedKeys="true" keyProperty="id">
+        insert into product_sku (product_id, sku_code, name, spec_json, price, market_price, image, status, deleted)
+        values
+        <foreach collection="skus" item="sku" separator=",">
+            (#{sku.productId}, #{sku.skuCode}, #{sku.name}, #{sku.specJson}, #{sku.price}, #{sku.marketPrice}, #{sku.image}, #{sku.status}, 0)
+        </foreach>
+    </insert>
+
+    <!--
+      按主键原地更新多个 SKU：用 CASE WHEN 拼成**一条** update，而不是 foreach 多语句（分隔符 ;），
+      因为 JDBC URL 未开 allowMultiQueries（见 mall-product/application.yml），多语句会被拒绝。
+      where id in (...) 保证只影响请求内的行；未列出的 id 不会命中任何 when 分支。
+    -->
+    <update id="updateBatch">
+        update product_sku
+        set sku_code = case id
+                <foreach collection="skus" item="sku">when #{sku.id} then #{sku.skuCode} </foreach>
+            end,
+            name = case id
+                <foreach collection="skus" item="sku">when #{sku.id} then #{sku.name} </foreach>
+            end,
+            spec_json = case id
+                <foreach collection="skus" item="sku">when #{sku.id} then #{sku.specJson} </foreach>
+            end,
+            price = case id
+                <foreach collection="skus" item="sku">when #{sku.id} then #{sku.price} </foreach>
+            end,
+            market_price = case id
+                <foreach collection="skus" item="sku">when #{sku.id} then #{sku.marketPrice} </foreach>
+            end,
+            image = case id
+                <foreach collection="skus" item="sku">when #{sku.id} then #{sku.image} </foreach>
+            end
+        where deleted = 0
+        and id in
+        <foreach collection="skus" item="sku" open="(" separator="," close=")">#{sku.id}</foreach>
+    </update>
+
+    <!-- 编辑商品：请求里未出现的 SKU 走逻辑删除（保留数据，订单明细仍可追溯） -->
+    <update id="softDeleteByIds">
+        update product_sku set deleted = 1
+        where deleted = 0
+        and id in
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </update>
+</mapper>

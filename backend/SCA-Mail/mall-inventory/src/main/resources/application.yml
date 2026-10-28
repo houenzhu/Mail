@@ -1,0 +1,57 @@
+server:
+  port: 8104
+
+spring:
+  application:
+    name: mall-inventory
+  cloud:
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+      discovery:
+        namespace: ${NACOS_NAMESPACE:}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+      config:
+        namespace: ${NACOS_NAMESPACE:}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+        file-extension: yaml
+  config:
+    import:
+      - optional:nacos:${spring.application.name}.yaml
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/mall_inventory?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:}
+
+mybatis:
+  mapper-locations: classpath*:mapper/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
+
+mall:
+  auth:
+    # 与网关、mall-auth 保持一致；未配置时服务端不采信任何身份头（fail-closed，见 21.2）
+    internal-token: ${INTERNAL_TOKEN:}
+  # RocketMQ（第三阶段第 7 项，见需求文档 19.6）
+  mq:
+    enabled: ${MALL_MQ_ENABLED:true}
+    name-server: ${ROCKETMQ_NAME_SERVER:127.0.0.1:9876}
+    # 本服务只消费不生产：没有 local_message 表，关掉生产者与 Outbox 中继
+    producer-enabled: false
+    consumer:
+      enabled: ${MALL_MQ_CONSUMER_ENABLED:true}
+      max-reconsume-times: ${MALL_MQ_MAX_RECONSUME:3}
+
+logging:
+  pattern:
+    level: "%5p [${spring.application.name:},%X{traceId:-}]"
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always

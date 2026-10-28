@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zhe.mall.order.mapper.OrderMapper">
+
+    <sql id="baseColumns">
+        order_no, user_id, request_id, status, total_amount, discount_amount, pay_amount,
+        coupon_id, pay_type, receiver_name, receiver_phone, receiver_address, remark,
+        expire_at, paid_at, cancelled_at, cancel_reason, deleted, created_at, updated_at
+    </sql>
+
+    <sql id="pageCondition">
+        <where>
+            deleted = 0
+            <if test="query.userId != null">
+                and user_id = #{query.userId}
+            </if>
+            <if test="query.status != null">
+                and status = #{query.status}
+            </if>
+        </where>
+    </sql>
+
+    <select id="selectByOrderNo" resultType="com.zhe.mall.order.entity.Order">
+        select <include refid="baseColumns"/>
+        from orders
+        where order_no = #{orderNo} and deleted = 0
+    </select>
+
+    <select id="selectByUserRequest" resultType="com.zhe.mall.order.entity.Order">
+        select <include refid="baseColumns"/>
+        from orders
+        where user_id = #{userId} and request_id = #{requestId} and deleted = 0
+    </select>
+
+    <select id="selectPage" resultType="com.zhe.mall.order.entity.Order">
+        select <include refid="baseColumns"/>
+        from orders
+        <include refid="pageCondition"/>
+        order by created_at desc, order_no desc
+        limit #{limit} offset #{offset}
+    </select>
+
+    <select id="countPage" resultType="long">
+        select count(1) from orders
+        <include refid="pageCondition"/>
+    </select>
+
+    <select id="selectTimeoutCandidates" resultType="com.zhe.mall.order.entity.Order">
+        select <include refid="baseColumns"/>
+        from orders
+        where status = 10 and deleted = 0 and expire_at &lt; now(3)
+        order by expire_at
+        limit #{limit}
+    </select>
+
+    <insert id="insert">
+        insert into orders (order_no, user_id, request_id, status, total_amount, discount_amount, pay_amount,
+                            coupon_id, pay_type, receiver_name, receiver_phone, receiver_address, remark, expire_at)
+        values (#{orderNo}, #{userId}, #{requestId}, #{status}, #{totalAmount}, #{discountAmount}, #{payAmount},
+                #{couponId}, #{payType}, #{receiverName}, #{receiverPhone}, #{receiverAddress}, #{remark}, #{expireAt})
+    </insert>
+
+    <update id="updateStatus">
+        update orders
+        set status = #{status}
+        where order_no = #{orderNo} and deleted = 0 and status = #{expectStatus}
+    </update>
+
+    <update id="markPaid">
+        update orders
+        set status = #{status}, pay_type = #{payType}, paid_at = #{paidAt}
+        where order_no = #{orderNo} and deleted = 0 and status = #{expectStatus}
+    </update>
+
+    <update id="markCancelled">
+        update orders
+        set status = #{status}, cancelled_at = #{cancelledAt}, cancel_reason = #{cancelReason}
+        where order_no = #{orderNo} and deleted = 0 and status = #{expectStatus}
+    </update>
+</mapper>

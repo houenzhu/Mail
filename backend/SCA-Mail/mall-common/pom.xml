@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.zhe</groupId>
+        <artifactId>SCA-Mail</artifactId>
+        <version>1.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>mall-common</artifactId>
+    <name>mall-common</name>
+    <description>公共模块：统一响应、异常处理</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+            <!-- optional：仅声明接口与自动配置，未加 starter 的服务不会被强制引入 Redis -->
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.rocketmq</groupId>
+            <artifactId>rocketmq-client</artifactId>
+            <!-- optional：只提供消息抽象与自动配置；加了本依赖的服务才会真正装配生产/消费者。
+                 必须显式声明（与 Redis 同一口径）：optional 限制的是传递性，不是本模块自身。
+                 注意 netty：Boot 4 的 BOM 把 netty-all 顶到 4.2.x，RocketMQ 5.x 编译基线是 4.1.x，
+                 已实测生产/消费/延时三级可用（见需求文档 29.x 的 POC 记录）。 -->
+            <optional>true</optional>
+        </dependency>
+        <!-- MyBatis：Outbox 与消费幂等表用注解映射（见 LocalMessageMapper 注释），
+             需要 @Select/@Param 等注解与 MapperScannerConfigurer。
+             optional：真正的运行期实现由各服务的 mybatis-spring-boot-starter 提供。 -->
+        <dependency>
+            <groupId>org.mybatis</groupId>
+            <artifactId>mybatis</artifactId>
+            <version>3.5.19</version>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.mybatis</groupId>
+            <artifactId>mybatis-spring</artifactId>
+            <version>4.0.0</version>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- 测试：@RequireStaff 是安全相关逻辑，必须有可回归的单测（见需求文档 23.2）。
+             用 spring-test 的 MockHttpServletRequest/Response，不起完整 Spring 上下文，跑得快。 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

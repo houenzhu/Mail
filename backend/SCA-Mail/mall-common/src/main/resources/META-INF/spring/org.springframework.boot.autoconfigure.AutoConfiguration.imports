@@ -1,0 +1,3 @@
+com.zhe.mall.common.config.MallCommonAutoConfiguration
+com.zhe.mall.common.cache.MallCacheAutoConfiguration
+com.zhe.mall.common.mq.MallMqAutoConfiguration

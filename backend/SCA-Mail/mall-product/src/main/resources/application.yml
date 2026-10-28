@@ -1,0 +1,77 @@
+server:
+  port: 8103
+
+spring:
+  application:
+    name: mall-product
+  cloud:
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+      discovery:
+        namespace: ${NACOS_NAMESPACE:}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+      config:
+        namespace: ${NACOS_NAMESPACE:}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+        file-extension: yaml
+    openfeign:
+      client:
+        config:
+          default:
+            connect-timeout: 1000
+            read-timeout: 5000
+  config:
+    import:
+      - optional:nacos:${spring.application.name}.yaml
+  data:
+    redis:
+      host: ${REDIS_HOST:192.168.198.133}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:1}
+      timeout: 2s
+      connect-timeout: 2s
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+          min-idle: 0
+          max-wait: 1s
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/mall_product?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:}
+
+mybatis:
+  mapper-locations: classpath*:mapper/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
+
+mall:
+  # 缓存参数（19.2 / 19.8），可用 Nacos 覆盖；enabled=false 时全部走 DB
+  cache:
+    enabled: ${MALL_CACHE_ENABLED:true}
+    ttl-seconds: ${MALL_CACHE_TTL_SECONDS:1800}
+    jitter-seconds: ${MALL_CACHE_JITTER_SECONDS:300}
+    null-ttl-seconds: ${MALL_CACHE_NULL_TTL_SECONDS:60}
+    lock-ttl-millis: ${MALL_CACHE_LOCK_TTL_MILLIS:10000}
+    lock-wait-millis: ${MALL_CACHE_LOCK_WAIT_MILLIS:150}
+    lock-retry-interval-millis: ${MALL_CACHE_LOCK_RETRY_MILLIS:50}
+  auth:
+    # 与网关、mall-auth 保持一致；未配置时服务端不采信任何身份头（fail-closed，见 21.2）
+    internal-token: ${INTERNAL_TOKEN:}
+
+logging:
+  pattern:
+    level: "%5p [${spring.application.name:},%X{traceId:-}]"
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always

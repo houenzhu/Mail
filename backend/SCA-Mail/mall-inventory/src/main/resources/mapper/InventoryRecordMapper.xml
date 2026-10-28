@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zhe.mall.inventory.mapper.InventoryRecordMapper">
+
+    <insert id="insert">
+        insert into inventory_record (id, sku_id, order_no, type, qty, status, remark)
+        values (#{id}, #{skuId}, #{orderNo}, #{type}, #{qty}, #{status}, #{remark})
+    </insert>
+
+    <select id="selectByUniqueKey" resultType="com.zhe.mall.inventory.entity.InventoryRecord">
+        select id, sku_id, order_no, type, qty, status, remark, created_at
+        from inventory_record
+        where order_no = #{orderNo} and sku_id = #{skuId} and type = #{type}
+    </select>
+
+    <update id="updateStatus">
+        update inventory_record set status = #{status}, remark = #{remark} where id = #{id}
+    </update>
+</mapper>

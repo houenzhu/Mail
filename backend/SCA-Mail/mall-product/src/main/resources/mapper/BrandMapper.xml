@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zhe.mall.product.mapper.BrandMapper">
+
+    <sql id="baseColumns">
+        id, name, logo_url, description, sort_no, status, deleted, created_at, updated_at
+    </sql>
+
+    <select id="selectAll" resultType="com.zhe.mall.product.entity.Brand">
+        select <include refid="baseColumns"/>
+        from brand
+        where deleted = 0 and status = 1
+        order by sort_no, id
+    </select>
+
+    <!-- 不做 status 过滤：编辑时要能回显一个已被停用的品牌 -->
+    <select id="selectById" resultType="com.zhe.mall.product.entity.Brand">
+        select <include refid="baseColumns"/>
+        from brand
+        where id = #{id} and deleted = 0
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        insert into brand (name, logo_url, description, sort_no, status, deleted)
+        values (#{name}, #{logoUrl}, #{description}, #{sortNo}, #{status}, 0)
+    </insert>
+
+    <update id="update">
+        update brand
+        set name = #{name},
+            logo_url = #{logoUrl},
+            description = #{description},
+            sort_no = #{sortNo},
+            status = #{status}
+        where id = #{id} and deleted = 0
+    </update>
+
+    <update id="softDelete">
+        update brand set deleted = 1 where id = #{id} and deleted = 0
+    </update>
+
+    <select id="countByNameExcluding" resultType="int">
+        select count(1) from brand
+        where name = #{name}
+        <if test="excludeId != null">
+            and id != #{excludeId}
+        </if>
+    </select>
+
+    <select id="countProductsByBrandId" resultType="int">
+        select count(1) from product where brand_id = #{brandId} and deleted = 0
+    </select>
+</mapper>
