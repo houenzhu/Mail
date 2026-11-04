@@ -80,4 +80,8 @@
         select count(1) from refund
         <include refid="adminPageCondition"/>
     </select>
+
+    <select id="countByStatus" resultType="long">
+        select count(1) from refund where status = #{status}
+    </select>
 </mapper>

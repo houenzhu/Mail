@@ -1,6 +1,8 @@
 package com.zhe.mall.api;
 
 import com.zhe.mall.api.dto.AdminOrderDetail;
+import com.zhe.mall.api.dto.AdminDashboardOverview;
+import com.zhe.mall.api.dto.AdminDashboardTrendPoint;
 import com.zhe.mall.api.dto.AdminOrderPageQuery;
 import com.zhe.mall.api.dto.AdminOrderRow;
 import com.zhe.mall.api.dto.AdminShipRequest;
@@ -14,6 +16,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
+
+import java.util.List;
 
 /**
  * 订单服务对外契约（mall-pay → mall-order）。
@@ -65,5 +70,19 @@ public interface OrderApi {
     @PostMapping("/admin/{orderNo}/ship")
     Result<AdminOrderDetail> adminShip(@PathVariable("orderNo") String orderNo,
                                        @RequestBody AdminShipRequest request);
+
+    /* ---------------- 后台看板（mall-admin 聚合时调用） ---------------- */
+
+    /** 看板概览中的订单侧指标：今日 GMV / 今日订单数 / 待发货 / 退款中。 */
+    @GetMapping("/admin/dashboard/overview")
+    Result<AdminDashboardOverview> adminDashboardOverview();
+
+    /**
+     * 近 N 日趋势（日期升序，缺失日期补 0）。
+     *
+     * @param days 天数，服务端收敛到 1~90
+     */
+    @GetMapping("/admin/dashboard/trend")
+    Result<List<AdminDashboardTrendPoint>> adminDashboardTrend(@RequestParam("days") Integer days);
 }
 

@@ -3,6 +3,7 @@ package com.zhe.mall.api;
 import com.zhe.mall.api.dto.DeductRequest;
 import com.zhe.mall.api.dto.DeductResult;
 import com.zhe.mall.api.dto.AdjustStockRequest;
+import com.zhe.mall.api.dto.AdminInventoryStat;
 import com.zhe.mall.api.dto.InventoryBatchRequest;
 import com.zhe.mall.api.dto.InventoryDTO;
 import com.zhe.mall.api.dto.InitStockRequest;
@@ -44,4 +45,8 @@ public interface InventoryApi {
 
     @PostMapping("/init")
     Result<Void> init(@RequestBody InitStockRequest request);
+
+    /** 看板库存域统计（售罄率 / 低库存），由 mall-admin 聚合。 */
+    @GetMapping("/admin/stat")
+    Result<AdminInventoryStat> adminStat();
 }

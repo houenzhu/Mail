@@ -31,6 +31,17 @@ public class AdminRefundController {
         this.adminRefundQueryService = adminRefundQueryService;
     }
 
+    /**
+     * 待处理退款单数（看板概览）。
+     *
+     * <p>必须声明在 {@code /{refundNo}} **之前**：虽然 Spring 会优先匹配无变量的路径，
+     * 但把固定路径写在前面可避免以后给 refundNo 加正则时被误吞。
+     */
+    @GetMapping("/pending-count")
+    public Result<Long> pendingCount() {
+        return Result.success(adminRefundQueryService.pendingCount());
+    }
+
     /** 后台退款单分页。 */
     @PostMapping("/page")
     public Result<PageResult<AdminRefundRow>> page(

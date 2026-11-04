@@ -49,4 +49,20 @@
             warn_threshold = values(warn_threshold),
             version = 0
     </insert>
+
+    <!--
+      售罄率口径（计划文档 M5）：
+        sku_total：有库存记录的 SKU 数
+        sku_sold_out：total 大于 0 且 available 等于 0（卖光了，可补货）
+        sku_zero_stock：total 等于 0（从未备货，单独计数，避免把新品算成售罄）
+        low_stock：available 不高于 warn_threshold（含售罄，用于待办提醒）
+      空表用 coalesce 兜底为 0，避免返回 null 让前端显示占位符。
+    -->
+    <select id="selectStat" resultType="com.zhe.mall.api.dto.AdminInventoryStat">
+        select count(1) as sku_total,
+               coalesce(sum(case when total &gt; 0 and available = 0 then 1 else 0 end), 0) as sku_sold_out,
+               coalesce(sum(case when total = 0 then 1 else 0 end), 0) as sku_zero_stock,
+               coalesce(sum(case when available &lt;= warn_threshold then 1 else 0 end), 0) as low_stock
+        from inventory
+    </select>
 </mapper>

@@ -3,6 +3,7 @@ package com.zhe.mall.inventory.service;
 import com.zhe.mall.api.dto.DeductRequest;
 import com.zhe.mall.api.dto.DeductResult;
 import com.zhe.mall.api.dto.AdjustStockRequest;
+import com.zhe.mall.api.dto.AdminInventoryStat;
 import com.zhe.mall.api.dto.InitStockRequest;
 import com.zhe.mall.api.dto.InventoryDTO;
 import com.zhe.mall.api.dto.InventoryRecordDTO;
@@ -53,6 +54,13 @@ public class InventoryService {
             throw new BusinessException(ResultCode.INVENTORY_NOT_FOUND, "库存记录不存在: " + skuId);
         }
         return toDTO(inventory);
+    }
+
+    /** 看板库存域统计（售罄率 / 低库存）。 */
+    public AdminInventoryStat stat() {
+        AdminInventoryStat stat = inventoryMapper.selectStat();
+        // 空表时 SQL 已用 coalesce 兜底，这里再保一层，避免映射异常时把看板整页打挂
+        return stat == null ? new AdminInventoryStat(0, 0, 0, 0) : stat;
     }
 
     /**

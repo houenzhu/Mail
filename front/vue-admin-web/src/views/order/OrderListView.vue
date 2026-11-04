@@ -79,11 +79,23 @@ watch(activeTab, () => {
 })
 
 onMounted(() => {
+  // 看板待办用 `?status=20` 直达对应 Tab；Tab key 就是状态码字符串。
+  // 路由参数优先于默认的「全部」，但非法值回退到全部，避免手改 URL 把页面卡死。
+  let tabChanged = false
+  if (typeof route.query.status === 'string' && route.query.status) {
+    const tab = ORDER_STATUS_TABS.find((item) => item.key === route.query.status)
+    if (tab && tab.key !== activeTab.value) {
+      activeTab.value = tab.key
+      tabChanged = true
+    }
+  }
   if (typeof route.query.orderNo === 'string' && route.query.orderNo) {
     filters.orderNo = route.query.orderNo
     query.orderNo = route.query.orderNo
-    load()
   }
+  // Tab 变化会触发 watch → search() 自行加载；只有纯 orderNo 场景才需要手动 load，
+  // 避免同一份查询发两次请求。
+  if (!tabChanged) load()
 })
 
 function onSearch() {

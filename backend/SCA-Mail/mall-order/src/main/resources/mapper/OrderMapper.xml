@@ -79,6 +79,49 @@
         select count(1) from orders
         <include refid="adminPageCondition"/>
     </select>
+
+    <!-- 后台看板：按日聚合成交额与支付成功订单数（按 paid_at 归日） -->
+    <select id="selectDailyStats" resultType="com.zhe.mall.api.dto.AdminOrderDailyStat">
+        select date(paid_at) as date,
+               coalesce(sum(pay_amount), 0) as gmv,
+               count(1) as paid_orders
+        from orders
+        where deleted = 0
+          and paid_at is not null
+          and status in (20, 30, 40, 60, 70)
+          and paid_at &gt;= #{start}
+          and paid_at &lt; #{end}
+        group by date(paid_at)
+        order by date(paid_at)
+    </select>
+
+    <!-- 后台看板：按日聚合下单数（按 created_at 归日，含未支付） -->
+    <select id="selectDailyOrderCounts" resultType="com.zhe.mall.api.dto.AdminOrderDailyCount">
+        select date(created_at) as date,
+               count(1) as orders
+        from orders
+        where deleted = 0
+          and created_at &gt;= #{start}
+          and created_at &lt; #{end}
+        group by date(created_at)
+        order by date(created_at)
+    </select>
+
+    <!-- 后台看板：状态计数一次拿全（空表也返回空列表，由服务层补 0） -->
+    <select id="selectStatusCounts" resultType="com.zhe.mall.api.dto.AdminOrderCountStat">
+        select status, count(1) as total
+        from orders
+        where deleted = 0
+        group by status
+    </select>
+
+    <select id="countCreatedBetween" resultType="long">
+        select count(1) from orders
+        where deleted = 0
+          and created_at &gt;= #{start}
+          and created_at &lt; #{end}
+    </select>
+
     <select id="selectTimeoutCandidates" resultType="com.zhe.mall.order.entity.Order">
         select <include refid="baseColumns"/>
         from orders

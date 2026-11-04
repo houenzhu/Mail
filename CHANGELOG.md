@@ -7,6 +7,30 @@
 暂无。
 
 
+## [0.5.0] - 2026-11-04
+
+- M5 数据看板与工作台指标（UC-ADMIN-03 / 计划文档 G-10）。
+  - `mall-order` 新增 `GET /api/order/admin/dashboard/overview` 与
+    `/api/order/admin/dashboard/trend?days=`：今日 GMV / 今日订单 / 待发货 / 退款中，
+    以及近 N 日趋势。归日固定 `Asia/Shanghai`，趋势缺失日补 0，天数收敛到 1~90（默认 7）。
+  - `mall-pay` 新增 `GET /api/pay/admin/refund/pending-count`；`mall-inventory` 新增
+    `GET /api/inventory/admin/stat`，售罄（`total>0 && available=0`）与未备货（`total=0`）
+    分开计数，避免把「没备货」误报成「售罄」。
+  - `mall-admin` 新增 `GET /api/admin/dashboard?days=` 聚合 BFF：
+    订单主指标失败即报错（不显示 0 误导运营）；退款与库存属辅助指标，下游不可用时置 0 并打 WARN。
+  - 售罄率分母为 0 时返回 `null`，前端显示 “—” 而不是 0%。
+  - 前端 `DashboardView` 重写为 4 张指标卡 + GMV/订单量 SVG 趋势 + 库存售罄率 + 待办；
+    工作台接真实指标。**未引入 ECharts**：只有折线/网格/刻度，原生 SVG 足以覆盖，
+    省掉约 300KB 依赖，后续出现复杂图表再评估。
+  - 修复真实缺陷：看板待办跳转带 `?status=20`，但订单/退款列表页此前只读 `orderNo`/`refundNo`，
+    忽略 `status`，导致落地后仍停在「全部」Tab。现两页均在 `onMounted` 解析 `status`
+    并复用 Tab 的 watch 加载，非法值回退到全部。
+  - 补齐测试与验收：新增 `AdminOrderDashboardServiceTest`、`InventoryMapperXmlTest`、
+    订单看板 SQL 的 XML 断言与 `AdminDashboardServiceTest`；新增
+    `npm run verify:dashboard`（17 项）并回归 login/order/refund/multitab。
+  - 后端单测 85 项全绿；真实接口与 SQL 逐项对齐（GMV、订单量、趋势、库存统计）。
+
+
 ## [0.4.0] - 2026-11-04
 
 - M4 收尾：多标签页令牌同步（计划文档 6.2 第 3 条硬约束）。

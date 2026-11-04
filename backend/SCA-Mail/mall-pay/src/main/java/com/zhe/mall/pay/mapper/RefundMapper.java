@@ -49,4 +49,7 @@ public interface RefundMapper {
                                  @Param("limit") int limit);
 
     long countAdminPage(@Param("query") AdminRefundPageQuery query);
+
+    /** 待处理退款单数（status=10）。看板概览用，走 status 索引。 */
+    long countByStatus(@Param("status") Integer status);
 }

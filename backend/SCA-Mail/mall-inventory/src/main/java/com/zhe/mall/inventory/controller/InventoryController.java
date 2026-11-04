@@ -3,6 +3,7 @@ package com.zhe.mall.inventory.controller;
 import com.zhe.mall.api.dto.DeductRequest;
 import com.zhe.mall.api.dto.DeductResult;
 import com.zhe.mall.api.dto.AdjustStockRequest;
+import com.zhe.mall.api.dto.AdminInventoryStat;
 import com.zhe.mall.api.dto.InitStockRequest;
 import com.zhe.mall.api.dto.InventoryBatchRequest;
 import com.zhe.mall.api.dto.InventoryDTO;
@@ -76,5 +77,17 @@ public class InventoryController {
     public Result<Void> init(@RequestBody InitStockRequest request) {
         inventoryService.init(request);
         return Result.success();
+    }
+
+    /**
+     * 看板库存域统计（售罄率 / 低库存）。
+     *
+     * <p>放在 {@code /admin/} 前缀下并复用 {@code @RequireStaff}：
+     * 库存汇总属于运营数据，买家不需要也不能看到。
+     */
+    @GetMapping("/admin/stat")
+    @RequireStaff
+    public Result<AdminInventoryStat> stat() {
+        return Result.success(inventoryService.stat());
     }
 }

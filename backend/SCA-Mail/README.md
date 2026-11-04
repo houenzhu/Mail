@@ -39,7 +39,7 @@
 
 ## 当前实现边界
 
-- 管理后台已接通登录、商品管理、分类/品牌维护，以及库存调整与流水查询；库存调整和流水查询只允许后台人员，调整只允许运营/管理员。后台订单/退款管理与数据看板也未实现，见 [后台前端说明](../../front/vue-admin-web/README.md)。
+- 管理后台已接通登录、商品管理、分类/品牌维护、库存调整与流水查询、订单查询/发货、退款单查询与数据看板；库存调整和流水查询只允许后台人员，调整只允许运营/管理员。看板由 `mall-admin` 聚合订单/支付/库存三个服务，见 [后台前端说明](../../front/vue-admin-web/README.md)。
 - 买家端 `front/vue-mall` 仍为初始脚手架，尚无商城业务流程。
 - 当前没有客服会话、工单、知识库或 LangChain Agent 服务。第 30 章记录了作为后续项目的范围、数据准备和接口安全要求；它是规划，不是已交付功能。
 - **权限已补齐（2026-10-28）**：`/api/admin/**` 的商品与目录读取在 BFF 控制器要求 staff，下游管理读取接口再次要求 staff；网关公开商品 GET 白名单已收敛为明确的 C 端路径，不再覆盖 `/api/product/admin/**`。内部身份仍由 `X-Gateway-Token` 证明，直连服务或伪造身份头按匿名处理。
@@ -156,6 +156,11 @@ powershell -ExecutionPolicy Bypass -File .\scripts\init-db.ps1
 | pay | POST | `/api/pay/admin/refund/page` | **后台退款单分页**：退款单号 / 订单号 / 买家 / 状态 / 时间区间；类级 `@RequireStaff` |
 | pay | GET | `/api/pay/admin/refund/{refundNo}` | 后台退款单详情（含发起方、操作人、渠道退款单号） |
 | admin | POST/GET | `/api/admin/refund/page`、`/api/admin/refund/{refundNo}` | 后台退款查询 BFF（只读，不降级） |
+| order | GET | `/api/order/admin/dashboard/overview` | 后台看板订单概览：今日 GMV/今日订单/待发货/退款中（`Asia/Shanghai` 口径） |
+| order | GET | `/api/order/admin/dashboard/trend?days=` | 后台看板趋势：近 N 日（1~90，默认 7）GMV/订单/已支付订单，缺失日补 0 |
+| pay | GET | `/api/pay/admin/refund/pending-count` | 待处理退款单数（`refund.status = 10`） |
+| inventory | GET | `/api/inventory/admin/stat` | 库存统计：SKU 总数/售罄/未备货/低库存（类级 `@RequireStaff`） |
+| admin | GET | `/api/admin/dashboard?days=` | **后台数据看板聚合**：订单概览 + 趋势 + 待处理退款 + 库存统计；订单失败即报错，退款/库存失败降级为 0 并 WARN |
 | product | GET | `/api/product/category/list`、`/api/product/brand/list` | 商品分类/品牌字典；当前作为 GET 商品路径也在网关匿名白名单内 |
 | internal-intended | POST/GET | `/api/product/admin/page`、`/api/product/admin/status-counts`、`/api/product/admin/sku-batch`、`/api/product/admin/sku-by-ids` | 供 mall-admin 经 Feign 调用的商品管理读取接口；服务端要求 staff，网关公开白名单不覆盖这些路径 |
 | inventory | GET/POST | `/api/inventory/{skuId}`、`/api/inventory/batch` | 库存查询与 BFF 聚合，要求 staff |

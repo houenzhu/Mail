@@ -350,5 +350,10 @@ class AdminProductServiceTest {
         public Result<InventoryRecordPage> recordPage(InventoryRecordPageQuery query) {
             return Result.success(recordPage);
         }
+
+        @Override
+        public Result<com.zhe.mall.api.dto.AdminInventoryStat> adminStat() {
+            throw new UnsupportedOperationException();
+        }
     }
 }

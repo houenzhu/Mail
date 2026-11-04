@@ -4,11 +4,14 @@ import com.zhe.mall.api.dto.AdminOrderDetail;
 import com.zhe.mall.api.dto.AdminOrderPageQuery;
 import com.zhe.mall.api.dto.AdminOrderRow;
 import com.zhe.mall.api.dto.AdminShipRequest;
+import com.zhe.mall.api.dto.AdminDashboardOverview;
+import com.zhe.mall.api.dto.AdminDashboardTrendPoint;
 import com.zhe.mall.common.auth.RequireStaff;
 import com.zhe.mall.common.auth.UserRole;
 import com.zhe.mall.common.result.PageResult;
 import com.zhe.mall.common.result.Result;
 import com.zhe.mall.order.service.AdminOrderQueryService;
+import com.zhe.mall.order.service.AdminOrderDashboardService;
 import com.zhe.mall.order.service.OrderService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,7 +19,10 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 /**
  * 后台订单查询接口（mall-admin 经 Feign 调用）。
@@ -34,11 +40,35 @@ public class AdminOrderController {
 
     private final AdminOrderQueryService adminOrderQueryService;
 
+    private final AdminOrderDashboardService adminOrderDashboardService;
+
     private final OrderService orderService;
 
-    public AdminOrderController(AdminOrderQueryService adminOrderQueryService, OrderService orderService) {
+    public AdminOrderController(AdminOrderQueryService adminOrderQueryService,
+                                AdminOrderDashboardService adminOrderDashboardService,
+                                OrderService orderService) {
         this.adminOrderQueryService = adminOrderQueryService;
+        this.adminOrderDashboardService = adminOrderDashboardService;
         this.orderService = orderService;
+    }
+
+    /*
+     * 注意路由顺序：Spring 的路径匹配会让 /dashboard/... 优先于 /{orderNo}，
+     * 但为避免以后有人把 orderNo 规则改成正则而误吞 dashbord 路径，
+     * 这里把看板接口集中声明在分页与详情之前，语义上也更清楚。
+     */
+
+    /** 看板概览的订单侧指标。 */
+    @GetMapping("/dashboard/overview")
+    public Result<AdminDashboardOverview> dashboardOverview() {
+        return Result.success(adminOrderDashboardService.overview());
+    }
+
+    /** 看板近 N 日趋势（日期升序，缺失日期补 0）。 */
+    @GetMapping("/dashboard/trend")
+    public Result<List<AdminDashboardTrendPoint>> dashboardTrend(
+            @RequestParam(value = "days", required = false) Integer days) {
+        return Result.success(adminOrderDashboardService.trend(days == null ? 7 : days));
     }
 
     /** 后台订单分页：全量订单，支持订单号 / 买家 / 状态 / 创建时间区间筛选。 */

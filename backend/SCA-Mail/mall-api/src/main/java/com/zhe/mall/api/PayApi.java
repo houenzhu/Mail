@@ -27,4 +27,13 @@ public interface PayApi {
     /** 后台退款单详情。 */
     @GetMapping("/admin/refund/{refundNo}")
     Result<AdminRefundDetail> adminRefundDetail(@PathVariable("refundNo") String refundNo);
+
+    /**
+     * 待处理退款单数（refund.status=10）。
+     *
+     * <p>看板概览用：退款是资金动作，数字必须来自 mall-pay 的真实表，
+     * 不能用订单状态反推（订单 60 只表示"退款中订单"，与退款单数量不是一回事）。
+     */
+    @GetMapping("/admin/refund/pending-count")
+    Result<Long> adminRefundPendingCount();
 }

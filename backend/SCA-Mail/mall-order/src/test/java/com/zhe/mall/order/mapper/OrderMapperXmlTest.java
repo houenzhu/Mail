@@ -83,6 +83,41 @@ class OrderMapperXmlTest {
         assertThat(statement.getBoundSql(params).getParameterMappings()).hasSize(2);
     }
 
+    @Test
+    @DisplayName("看板 SQL：按日聚合只统计已成交状态，且用半开区间避免跨日重复")
+    void dashboardDailyStatsSql() throws Exception {
+        Configuration configuration = parse(ORDER_MAPPER);
+        Map<String, Object> params = Map.of(
+                "start", java.time.LocalDateTime.of(2026, 11, 1, 0, 0),
+                "end", java.time.LocalDateTime.of(2026, 11, 2, 0, 0));
+
+        MappedStatement daily = configuration.getMappedStatement(
+                "com.zhe.mall.order.mapper.OrderMapper.selectDailyStats");
+        String sql = normalize(daily.getBoundSql(params).getSql());
+        assertThat(sql).contains("date(paid_at)");
+        assertThat(sql).contains("status in (20, 30, 40, 60, 70)");
+        assertThat(sql).contains("paid_at >= ?", "paid_at < ?");
+        assertThat(sql).contains("group by date(paid_at)");
+
+        MappedStatement counts = configuration.getMappedStatement(
+                "com.zhe.mall.order.mapper.OrderMapper.selectDailyOrderCounts");
+        String countSql = normalize(counts.getBoundSql(params).getSql());
+        assertThat(countSql).contains("date(created_at)");
+        assertThat(countSql).contains("created_at >= ?", "created_at < ?");
+        assertThat(countSql).doesNotContain("paid_at");
+    }
+
+    @Test
+    @DisplayName("看板 SQL：状态计数一次 GROUP BY，不做多次 count")
+    void dashboardStatusCountsSql() throws Exception {
+        Configuration configuration = parse(ORDER_MAPPER);
+        MappedStatement statement = configuration.getMappedStatement(
+                "com.zhe.mall.order.mapper.OrderMapper.selectStatusCounts");
+        String sql = normalize(statement.getBoundSql(Map.of()).getSql());
+
+        assertThat(sql).isEqualTo("select status, count(1) as total from orders where deleted = 0 group by status");
+    }
+
     private Configuration parse(String path) throws Exception {
         Configuration configuration = new Configuration();
         try (InputStream in = Files.newInputStream(Path.of(path))) {

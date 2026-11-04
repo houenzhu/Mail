@@ -66,6 +66,11 @@ public class AdminRefundQueryService {
         return new AdminRefundDetail(toRow(refund));
     }
 
+    /** 待处理退款单数（看板概览）。 */
+    public long pendingCount() {
+        return refundMapper.countByStatus(RefundStatus.PENDING_AUDIT.code());
+    }
+
     private AdminRefundPageQuery normalize(AdminRefundPageQuery query) {
         if (query == null) {
             return new AdminRefundPageQuery(null, null, null, null, null, null, 1, 10);

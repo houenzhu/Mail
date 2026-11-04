@@ -113,10 +113,20 @@ async function openDetail(row) {
 watch(activeTab, search)
 
 onMounted(() => {
+  // 看板待办用 `?status=10` 直达退款中 Tab；合法值才生效，非法值回退到全部。
+  let tabChanged = false
+  if (typeof route.query.status === 'string' && route.query.status) {
+    const tab = REFUND_STATUS_TABS.find((item) => item.key === route.query.status)
+    if (tab && tab.key !== activeTab.value) {
+      activeTab.value = tab.key
+      tabChanged = true
+    }
+  }
   if (typeof route.query.refundNo === 'string' && route.query.refundNo) {
     query.refundNo = route.query.refundNo
   }
-  load()
+  // Tab 变化会触发 watch → search() 加载；避免重复请求。
+  if (!tabChanged) load()
 })
 </script>
 
