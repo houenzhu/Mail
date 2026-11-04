@@ -3,6 +3,7 @@ package com.zhe.mall.admin.service;
 import com.zhe.mall.api.PayApi;
 import com.zhe.mall.api.dto.AdminRefundDetail;
 import com.zhe.mall.api.dto.AdminRefundPageQuery;
+import com.zhe.mall.api.dto.AdminRefundRejectRequest;
 import com.zhe.mall.api.dto.AdminRefundRow;
 import com.zhe.mall.common.exception.BusinessException;
 import com.zhe.mall.common.result.PageResult;
@@ -41,6 +42,31 @@ public class AdminRefundService {
             throw new BusinessException(ResultCode.PARAM_MISSING, "refundNo 不能为空");
         }
         return unwrap(payApi.adminRefundDetail(refundNo.trim()), "查询退款单详情");
+    }
+
+    /**
+     * 审核通过（0 → 10 → 20）。
+     *
+     * <p>BFF 不判断"能不能审"：状态机、角色与渠道调用都在 mall-pay，
+     * 这里只翻译错误码，避免两套退款规则。
+     */
+    public AdminRefundDetail approve(String refundNo) {
+        String effective = requireRefundNo(refundNo);
+        return unwrap(payApi.adminRefundApprove(effective), "审核通过退款");
+    }
+
+    /** 审核驳回（0 → 30），原因随请求下传，空值由下游补默认文案。 */
+    public AdminRefundDetail reject(String refundNo, AdminRefundRejectRequest request) {
+        String effective = requireRefundNo(refundNo);
+        AdminRefundRejectRequest body = request == null ? new AdminRefundRejectRequest(null) : request;
+        return unwrap(payApi.adminRefundReject(effective, body), "驳回退款");
+    }
+
+    private String requireRefundNo(String refundNo) {
+        if (refundNo == null || refundNo.isBlank()) {
+            throw new BusinessException(ResultCode.PARAM_MISSING, "refundNo 不能为空");
+        }
+        return refundNo.trim();
     }
 
     private <T> T unwrap(Result<T> result, String action) {

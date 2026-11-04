@@ -2,7 +2,7 @@
 
 基于 Spring Cloud Alibaba + JDK 21 的 B2C 商场微服务平台骨架，需求见 [商场微服务项目需求文档（V1.0）.md](./商场微服务项目需求文档（V1.0）.md)。JDK 21 是当前推荐的本地开发和部署运行时；历史文档中的 JDK 25 记录保留用于追溯早期兼容性排障。
 
-> 需求文档当前为 V1.14，共 30 章。常用入口：用例与业务规则看第十六章、领域边界与 ADR 看第十七章、接口契约与错误码看第十八章、缓存与消息看第十九章、一致性与失败场景看第二十章、安全与 Sa-Token 迁移看第二十一章、测试与验收看第二十三～二十四章、第三阶段落地记录看第二十六～二十九章；**当前实现状态、已知接口/权限缺口与客服 Agent 规划见第三十章**。
+> 需求文档当前为 V1.15，共 30 章。常用入口：用例与业务规则看第十六章、领域边界与 ADR 看第十七章、接口契约与错误码看第十八章、缓存与消息看第十九章、一致性与失败场景看第二十章、安全与 Sa-Token 迁移看第二十一章、测试与验收看第二十三～二十四章、第三阶段落地记录看第二十六～二十九章；**当前实现状态、已知接口/权限缺口与客服 Agent 规划见第三十章**。
 
 ## 技术栈
 
@@ -39,7 +39,7 @@
 
 ## 当前实现边界
 
-- 管理后台已接通登录、商品管理、分类/品牌维护、库存调整与流水查询、订单查询/发货、退款单查询与数据看板；库存调整和流水查询只允许后台人员，调整只允许运营/管理员。看板由 `mall-admin` 聚合订单/支付/库存三个服务，见 [后台前端说明](../../front/vue-admin-web/README.md)。
+- 管理后台已接通登录、商品管理、分类/品牌维护、库存调整与流水查询、订单查询/发货/确认收货、退款查询与**审核/驳回**、数据看板；库存调整、订单写操作与退款审批只允许运营/管理员，客服可查看。看板由 `mall-admin` 聚合订单/支付/库存三个服务，见 [后台前端说明](../../front/vue-admin-web/README.md)。
 - 买家端 `front/vue-mall` 仍为初始脚手架，尚无商城业务流程。
 - 当前没有客服会话、工单、知识库或 LangChain Agent 服务。第 30 章记录了作为后续项目的范围、数据准备和接口安全要求；它是规划，不是已交付功能。
 - **权限已补齐（2026-10-28）**：`/api/admin/**` 的商品与目录读取在 BFF 控制器要求 staff，下游管理读取接口再次要求 staff；网关公开商品 GET 白名单已收敛为明确的 C 端路径，不再覆盖 `/api/product/admin/**`。内部身份仍由 `X-Gateway-Token` 证明，直连服务或伪造身份头按匿名处理。
@@ -158,10 +158,13 @@ powershell -ExecutionPolicy Bypass -File .\scripts\init-db.ps1
 | admin | POST | `/api/admin/order/{orderNo}/confirm` | 代客确认收货 BFF（仅 OPERATOR/ADMIN，不做降级） |
 | pay | POST | `/api/pay/admin/refund/page` | **后台退款单分页**：退款单号 / 订单号 / 买家 / 状态 / 时间区间；类级 `@RequireStaff` |
 | pay | GET | `/api/pay/admin/refund/{refundNo}` | 后台退款单详情（含发起方、操作人、渠道退款单号） |
-| admin | POST/GET | `/api/admin/refund/page`、`/api/admin/refund/{refundNo}` | 后台退款查询 BFF（只读，不降级） |
+| pay | POST | `/api/pay/admin/refund/{refundNo}/approve` | 审核通过：0 → 10 → 渠道退款 → 20；`@RequireStaff(OPERATOR)` |
+| pay | POST | `/api/pay/admin/refund/{refundNo}/reject` | 审核驳回：0 → 30，原因落 `fail_reason`，释放幂等键 |
+| admin | POST/GET | `/api/admin/refund/page`、`/api/admin/refund/{refundNo}` | 后台退款查询 BFF（不降级；任意 staff 可查） |
+| admin | POST | `/api/admin/refund/{refundNo}/approve`、`/reject` | 后台退款审批 BFF；任意 staff 可查，审批限定 OPERATOR |
 | order | GET | `/api/order/admin/dashboard/overview` | 后台看板订单概览：今日 GMV/今日订单/待发货/退款中（`Asia/Shanghai` 口径） |
 | order | GET | `/api/order/admin/dashboard/trend?days=` | 后台看板趋势：近 N 日（1~90，默认 7）GMV/订单/已支付订单，缺失日补 0 |
-| pay | GET | `/api/pay/admin/refund/pending-count` | 待处理退款单数（`refund.status = 10`） |
+| pay | GET | `/api/pay/admin/refund/pending-count` | 待处理退款单数（`refund.status in (0, 10)`：待审核 + 退款中） |
 | inventory | GET | `/api/inventory/admin/stat` | 库存统计：SKU 总数/售罄/未备货/低库存（类级 `@RequireStaff`） |
 | admin | GET | `/api/admin/dashboard?days=` | **后台数据看板聚合**：订单概览 + 趋势 + 待处理退款 + 库存统计；订单失败即报错，退款/库存失败降级为 0 并 WARN |
 | product | GET | `/api/product/category/list`、`/api/product/brand/list` | 商品分类/品牌字典；当前作为 GET 商品路径也在网关匿名白名单内 |
@@ -212,7 +215,8 @@ curl "http://127.0.0.1:8102/actuator/health"
 # 商品详情（白名单，无需令牌）
 curl "http://127.0.0.1:10000/api/product/1"
 
-# 登录拿令牌（种子账号：buyer01 / Buyer@123456、admin / Admin@123456、operator01 / Operator@123456）
+# 登录拿令牌（种子账号：buyer01 / Buyer@123456、admin / Admin@123456、
+# operator01 / Operator@123456、cs01 / Cs@123456）
 # PowerShell 取令牌：
 #   $login = curl.exe -s -X POST "http://127.0.0.1:10000/api/auth/login" -H "Content-Type: application/json" `
 #     -d '{"username":"buyer01","password":"Buyer@123456"}' | ConvertFrom-Json
@@ -263,6 +267,17 @@ curl -X POST "http://127.0.0.1:10000/api/pay/refund" `
   -H "Authorization: Bearer <accessToken>" -H "Content-Type: application/json" `
   -d '{"orderNo":"<orderNo>","reason":"不想要了"}'
 
+# 申请退款并走人工审核（0 待审核，不立即调渠道；默认不传 audit 仍是即时退款）
+curl -X POST "http://127.0.0.1:10000/api/pay/refund" `
+  -H "Authorization: Bearer <buyerToken>" -H "Content-Type: application/json" `
+  -d '{"orderNo":"<orderNo>","reason":"不想要了","audit":true}'
+
+# 后台审核（仅 OPERATOR/ADMIN；BFF 双层校验）
+curl -X POST "http://127.0.0.1:10000/api/admin/refund/<refundNo>/approve" -H "Authorization: Bearer <staffToken>"
+curl -X POST "http://127.0.0.1:10000/api/admin/refund/<refundNo>/reject" `
+  -H "Authorization: Bearer <staffToken>" -H "Content-Type: application/json" `
+  -d '{"reason":"商品已签收，不支持仅退款"}'
+
 # 内部接口（必须直连服务并带内部令牌；经网关访问含 /internal/ 的路径一律 403）
 curl -X POST "http://127.0.0.1:8106/api/pay/internal/sync/<paymentNo>" -H "X-Gateway-Token: <INTERNAL_TOKEN>"
 curl -X POST "http://127.0.0.1:8106/api/pay/internal/reconcile/2026-09-15" -H "X-Gateway-Token: <INTERNAL_TOKEN>"
@@ -270,7 +285,9 @@ curl -X POST "http://127.0.0.1:8106/api/pay/internal/reconcile/2026-09-15" -H "X
 
 种子数据（`sql/04_seed_data.sql`）：SKU 1001 库存 100、1002 库存 50、1003 库存 200，1004 / 1005 库存为 0（用于验证售罄与回滚）。
 
-种子账号（`sql/07_seed_user_auth.sql`）：`admin` / `Admin@123456`（ADMIN）、`buyer01` / `Buyer@123456`（USER）、`operator01` / `Operator@123456`（OPERATOR），对应档案同步在 `mall_user.user`。
+种子账号（`sql/07_seed_user_auth.sql`）：`admin` / `Admin@123456`（ADMIN）、
+`buyer01` / `Buyer@123456`（USER）、`operator01` / `Operator@123456`（OPERATOR）、
+`cs01` / `Cs@123456`（CS，只能查看退款、不能审批），对应档案同步在 `mall_user.user`。
 
 ## 开发注意
 

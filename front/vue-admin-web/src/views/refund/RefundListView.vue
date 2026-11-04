@@ -4,16 +4,19 @@
  *
  * 结构：状态 Tab → 筛选栏 → 表格 → 分页 → 详情抽屉
  *
- * 边界说明（BR-13 / 28.7）：
+ * 边界说明（BR-13 / 28.7 / 12.24）：
  *  - 本阶段只支持「已支付且未发货」的全额退款，退款申请仍走 C 端 `POST /api/pay/refund`；
- *  - 后台这里只做查询与审计，不提供"同意/驳回"按钮——退款审核流属第四阶段，
- *    放一个假按钮比不放更糟。
- *  - 退款失败（30）的 `active_key` 已被置空，买家可重新申请，因此失败单不是终态。
+ *  - 待审核（0）的退款单由运营/管理员在详情里「同意退款」或「驳回」：
+ *    同意 → 10 → 渠道退款 → 20；驳回 → 30，释放幂等键允许买家重新申请。
+ *  - 客服（CS）可以查看但不能审批，按钮按角色隐藏；真正的边界在服务端
+ *    `@RequireStaff(OPERATOR)`，前端隐藏只是体验。
+ *  - 只有 0 显示审批按钮：10/20/30 再点一次没有业务意义，只会产生一次 35006。
  */
-import { onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
-import { getRefundDetail, pageRefunds } from '@/api/refund'
+import { approveRefund, getRefundDetail, pageRefunds, rejectRefund } from '@/api/refund'
 import {
   REFUND_OPERATOR_DICT,
   REFUND_STATUS_DICT,
@@ -22,8 +25,10 @@ import {
   dictTag,
 } from '@/constants/dict'
 import { formatDateTime, formatMoney, formatNumber } from '@/utils/format'
+import { usePermission } from '@/composables/usePermission'
 
 const route = useRoute()
+const { hasRole } = usePermission()
 
 const activeTab = ref('all')
 const loading = ref(false)
@@ -32,6 +37,10 @@ const total = ref(0)
 const detailVisible = ref(false)
 const detailLoading = ref(false)
 const detail = ref(null)
+const approving = ref(false)
+const rejectVisible = ref(false)
+const rejectLoading = ref(false)
+const rejectReason = ref('')
 
 const query = reactive({
   refundNo: '',
@@ -107,6 +116,64 @@ async function openDetail(row) {
     detailVisible.value = false
   } finally {
     detailLoading.value = false
+  }
+}
+
+/** 只有待审核单需要审批，且只有运营/管理员能批钱（ADMIN 覆盖 OPERATOR）。 */
+const canAudit = computed(
+  () => hasRole('OPERATOR') && detail.value?.refund?.status === 0,
+)
+
+/** 同意退款：二次确认后再调渠道；成功后刷新列表与抽屉。 */
+async function submitApprove() {
+  if (!detail.value?.refund) return
+  const refundNo = detail.value.refund.refundNo
+  try {
+    await ElMessageBox.confirm(
+      `确认同意 ${formatMoney(detail.value.refund.amount)} 的全额退款？确认后将立即请求渠道退款。`,
+      '同意退款',
+      { type: 'warning', confirmButtonText: '同意退款', cancelButtonText: '取消' },
+    )
+  } catch {
+    return
+  }
+  approving.value = true
+  try {
+    detail.value = await approveRefund(refundNo)
+    ElMessage.success(
+      detail.value?.refund?.status === 20 ? '退款已完成' : '退款已受理，正在等待渠道结果',
+    )
+    load()
+  } catch {
+    // 错误提示由 request.js 统一处理；保持抽屉打开便于看到最新状态
+    try { detail.value = await getRefundDetail(refundNo) } catch { /* 忽略回读失败 */ }
+  } finally {
+    approving.value = false
+  }
+}
+
+function openReject() {
+  rejectReason.value = ''
+  rejectVisible.value = true
+}
+
+/** 驳回：原因会展示给买家，不能空提交（后端有默认文案但审计价值低）。 */
+async function submitReject() {
+  const reason = rejectReason.value.trim()
+  if (!reason) {
+    ElMessage.warning('请填写驳回原因，买家会看到这段说明')
+    return
+  }
+  rejectLoading.value = true
+  try {
+    detail.value = await rejectRefund(detail.value.refund.refundNo, reason)
+    rejectVisible.value = false
+    ElMessage.success('已驳回退款申请')
+    load()
+  } catch {
+    // 错误提示由 request.js 统一处理；保持弹窗打开便于修正
+  } finally {
+    rejectLoading.value = false
   }
 }
 
@@ -198,7 +265,7 @@ onMounted(() => {
     <div class="page-card">
       <div class="table-head">
         <span class="text-muted text-xs">
-          共 {{ formatNumber(total) }} 笔退款单 · 本阶段仅支持「已支付未发货」全额退款
+          共 {{ formatNumber(total) }} 笔退款单 · 仅支持「已支付未发货」全额退款
         </span>
       </div>
 
@@ -292,6 +359,15 @@ onMounted(() => {
             <el-descriptions-item label="操作人 ID">
               {{ detail.refund.operatorId ?? '-' }}
             </el-descriptions-item>
+            <el-descriptions-item label="审核人">
+              {{ detail.refund.auditedBy || '-' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="审核人 ID">
+              {{ detail.refund.auditedById ?? '-' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="审核时间" :span="2">
+              {{ formatDateTime(detail.refund.auditedAt) }}
+            </el-descriptions-item>
             <el-descriptions-item label="渠道退款单号">
               {{ detail.refund.channelRefundNo || '-' }}
             </el-descriptions-item>
@@ -310,7 +386,16 @@ onMounted(() => {
           </el-descriptions>
 
           <el-alert
-            v-if="detail.refund.status === 30"
+            v-if="detail.refund.status === 0"
+            class="tip"
+            type="warning"
+            :closable="false"
+            show-icon
+            title="等待审核"
+            description="同意后立即发起渠道退款；驳回会释放幂等键，买家可重新申请。"
+          />
+          <el-alert
+            v-else-if="detail.refund.status === 30"
             class="tip"
             type="warning"
             :closable="false"
@@ -327,10 +412,45 @@ onMounted(() => {
             title="退款已完成"
             description="支付单已置为「已退款」，订单已流转到「已退款」。"
           />
+
+          <div v-if="canAudit" class="audit-bar">
+            <el-button type="primary" :loading="approving" @click="submitApprove">
+              同意退款
+            </el-button>
+            <el-button type="danger" plain @click="openReject">驳回</el-button>
+          </div>
+          <el-alert
+            v-else-if="detail.refund.status === 0"
+            class="tip"
+            type="info"
+            :closable="false"
+            show-icon
+            title="当前账号只能查看"
+            description="退款审批限定运营/管理员，客服可查看详情但无法批准资金动作。"
+          />
         </template>
         <el-empty v-else-if="!detailLoading" description="未获取到退款详情" />
       </div>
     </el-drawer>
+
+    <el-dialog v-model="rejectVisible" title="驳回退款申请" width="420px">
+      <el-form label-position="top">
+        <el-form-item label="驳回原因">
+          <el-input
+            v-model="rejectReason"
+            type="textarea"
+            :rows="3"
+            maxlength="128"
+            show-word-limit
+            placeholder="填写给买家看的原因，例如：商品已签收，不支持仅退款"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="rejectVisible = false">取消</el-button>
+        <el-button type="danger" :loading="rejectLoading" @click="submitReject">确认驳回</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -355,6 +475,13 @@ onMounted(() => {
 
 .tip {
   margin-top: 14px;
+}
+
+.audit-bar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
 }
 
 .text-danger {

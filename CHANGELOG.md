@@ -6,6 +6,37 @@
 
 暂无。
 
+## [0.7.0] - 2026-11-04
+
+- 退款审核/驳回工作流（12.24 / 28.12 关闭主缺口）。
+  - `POST /api/pay/refund` 新增可选 `audit`：`true` 只创建「0 待审核」退款单，
+    不调渠道、不动支付单与订单；不传或 `false` 保持 V1.11 的「申请即退款」契约，
+    C 端与 `scripts/e2e-pay.ps1` 不受影响。
+  - 新增审核接口（BFF `POST /api/admin/refund/{refundNo}/approve|reject` →
+    `mall-pay POST /api/pay/admin/refund/{refundNo}/approve|reject`）：
+    同意走 `0 → 10 → 渠道退款 → 20`，支付单 20 → 50、订单 60 → 70；
+    驳回走 `0 → 30`，原因落 `fail_reason`，`active_key` 置 NULL，订单保持 20 可重新申请。
+  - 审批限定 `OPERATOR`（ADMIN 覆盖），CS 可查看但不能审批；BFF 与 `mall-pay` 双层校验，
+    服务层再判一次 `hasRole(OPERATOR)`，避免新增入口漏注解。
+  - 新增 `sql/13_refund_audit.sql`：`refund` 补 `audited_by / audited_by_id / audited_at`。
+    刻意不复用 `operator / operator_id`——那是「发起方」，覆盖会丢掉原始申请人，
+    正是资金纠纷最需要的审计信息。
+  - 幂等查询 `selectActiveByOrderNo` 纳入 `status = 0`：审核期间重复申请回放同一单，
+    不会产生第二张待审单；同意/驳回均为 CAS（0 → 10 / 0 → 30），重复点击幂等。
+  - 同意前先校验支付单仍是已支付，再抢状态：避免「已抢到 10 但支付单已退」把单子永久卡在退款中。
+  - 看板「待处理退款」改为 `refund.status in (0, 10)`，待办直达「待审核」Tab；
+    审批动作只看 0，10/20/30 不再显示按钮，避免一次必然失败的请求。
+  - 前端退款详情新增审核人/审核时间、条件化「同意退款 / 驳回」与驳回原因弹窗；
+    客服视角显示「当前账号只能查看」说明。
+  - `sql/07_seed_user_auth.sql` 增加 `cs01 / Cs@123456`（CS 角色），
+    让「客服只读」验收可复现。
+  - 新增 `RefundAuditServiceTest`（11 项）、`RefundMapperXmlTest`（5 项）与 BFF 4 项；
+    后端全量单测 **129 项 / 22 suite 全绿**。
+  - 真实接口 E2E 13 项：申请待审核不碰渠道、驳回后订单仍 20、可重新申请、
+    同意后 20/50/70 联动、重复审批幂等、买家 403 / 匿名 401 / CS 403。
+  - 新增 `npm run verify:refund-audit`（17 项）：待审核 Tab、审批按钮、驳回原因回显、
+    同意二次确认、渠道单号回显、CS 只读；回归 `verify:refund` 与 `verify:dashboard` 通过。
+
 ## [0.6.0] - 2026-11-04
 
 - UC-ORDER-06 确认收货（订单主流程闭环：待支付 → 已支付 → 已发货 → 已完成）。

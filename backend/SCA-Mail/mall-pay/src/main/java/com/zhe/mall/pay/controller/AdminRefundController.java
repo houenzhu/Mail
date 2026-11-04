@@ -2,11 +2,15 @@ package com.zhe.mall.pay.controller;
 
 import com.zhe.mall.api.dto.AdminRefundDetail;
 import com.zhe.mall.api.dto.AdminRefundPageQuery;
+import com.zhe.mall.api.dto.AdminRefundRejectRequest;
 import com.zhe.mall.api.dto.AdminRefundRow;
 import com.zhe.mall.common.auth.RequireStaff;
+import com.zhe.mall.common.auth.UserRole;
 import com.zhe.mall.common.result.PageResult;
 import com.zhe.mall.common.result.Result;
 import com.zhe.mall.pay.service.AdminRefundQueryService;
+import com.zhe.mall.pay.service.RefundService;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -27,8 +31,12 @@ public class AdminRefundController {
 
     private final AdminRefundQueryService adminRefundQueryService;
 
-    public AdminRefundController(AdminRefundQueryService adminRefundQueryService) {
+    private final RefundService refundService;
+
+    public AdminRefundController(AdminRefundQueryService adminRefundQueryService,
+                                 RefundService refundService) {
         this.adminRefundQueryService = adminRefundQueryService;
+        this.refundService = refundService;
     }
 
     /**
@@ -52,6 +60,28 @@ public class AdminRefundController {
     /** 后台退款单详情。 */
     @GetMapping("/{refundNo}")
     public Result<AdminRefundDetail> detail(@PathVariable("refundNo") String refundNo) {
+        return Result.success(adminRefundQueryService.detail(refundNo));
+    }
+
+    /**
+     * 审核通过：0 待审核 → 10 退款中 → 渠道退款。
+     *
+     * <p>只有运营/管理员能批钱，客服（CS）可以看但审批需走运营，因此限定 OPERATOR。
+     * 重复审批幂等返回当前退款单，不会二次调渠道。
+     */
+    @PostMapping("/{refundNo}/approve")
+    @RequireStaff(UserRole.OPERATOR)
+    public Result<AdminRefundDetail> approve(@PathVariable("refundNo") String refundNo) {
+        refundService.approve(refundNo);
+        return Result.success(adminRefundQueryService.detail(refundNo));
+    }
+
+    /** 审核驳回：0 → 30，原因落 fail_reason，释放幂等键允许买家重新申请。 */
+    @PostMapping("/{refundNo}/reject")
+    @RequireStaff(UserRole.OPERATOR)
+    public Result<AdminRefundDetail> reject(@PathVariable("refundNo") String refundNo,
+                                            @Valid @RequestBody(required = false) AdminRefundRejectRequest request) {
+        refundService.reject(refundNo, request == null ? null : request.reason());
         return Result.success(adminRefundQueryService.detail(refundNo));
     }
 }

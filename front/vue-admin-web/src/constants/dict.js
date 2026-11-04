@@ -92,6 +92,7 @@ export const REFUND_STATUS_DICT = [
 
 export const REFUND_STATUS_TABS = [
   { key: 'all', label: '全部', status: undefined },
+  { key: '0', label: '待审核', status: 0 },
   { key: '10', label: '退款中', status: 10 },
   { key: '20', label: '退款成功', status: 20 },
   { key: '30', label: '退款失败', status: 30 },

@@ -170,11 +170,11 @@ const todos = computed(() => [
   },
   {
     key: 'refunding',
-    title: '退款中订单',
-    count: overview.value.refunding ?? 0,
+    title: '待处理退款',
+    count: overview.value.refundPending ?? 0,
     path: '/refund/list',
-    query: { status: 10 },
-    action: '查看退款',
+    query: { status: 0 },
+    action: '去审核',
   },
   {
     key: 'lowStock',

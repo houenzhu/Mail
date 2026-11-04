@@ -4,6 +4,7 @@
 
     <sql id="baseColumns">
         refund_no, payment_no, order_no, user_id, amount, status, active_key, reason, operator, operator_id,
+        audited_by, audited_by_id, audited_at,
         channel_refund_no, applied_at, finished_at, fail_reason, created_at, updated_at
     </sql>
 
@@ -22,7 +23,7 @@
     <select id="selectActiveByOrderNo" resultType="com.zhe.mall.pay.entity.Refund">
         select <include refid="baseColumns"/>
         from refund
-        where order_no = #{orderNo} and status in (10, 20)
+        where order_no = #{orderNo} and status in (0, 10, 20)
         order by created_at desc, refund_no desc
         limit 1
     </select>
@@ -42,6 +43,23 @@
     <update id="markFailed">
         update refund
         set status = #{status}, fail_reason = #{failReason}, finished_at = #{finishedAt}, active_key = null
+        where refund_no = #{refundNo} and status = #{expectStatus}
+    </update>
+
+    <!-- 审核通过：0 → 10。不改 active_key，退款中仍占幂等键 -->
+    <update id="markApproved">
+        update refund
+        set status = #{status}, audited_by = #{auditedBy}, audited_by_id = #{auditedById},
+            audited_at = #{auditedAt}
+        where refund_no = #{refundNo} and status = #{expectStatus}
+    </update>
+
+    <!-- 审核驳回：0 → 30。active_key 置 NULL 允许买家重新申请；订单从未进入 60，无需回调 -->
+    <update id="markRejected">
+        update refund
+        set status = #{status}, fail_reason = #{failReason},
+            audited_by = #{auditedBy}, audited_by_id = #{auditedById}, audited_at = #{auditedAt},
+            finished_at = #{finishedAt}, active_key = null
         where refund_no = #{refundNo} and status = #{expectStatus}
     </update>
 
@@ -81,7 +99,8 @@
         <include refid="adminPageCondition"/>
     </select>
 
-    <select id="countByStatus" resultType="long">
-        select count(1) from refund where status = #{status}
+    <!-- 待处理 = 待审核(0) + 退款中(10)：两者都需要后台动作，看板不能只盯其中一种 -->
+    <select id="countPending" resultType="long">
+        select count(1) from refund where status in (0, 10)
     </select>
 </mapper>

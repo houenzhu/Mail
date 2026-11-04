@@ -6,7 +6,10 @@ import com.zhe.mall.common.result.ResultCode;
 import java.util.Arrays;
 
 /**
- * 退款单状态（16.5）。本阶段不落地 {@link #PENDING_AUDIT}：无审核流，见 28.12 已知限制。
+ * 退款单状态（16.5）。
+ *
+ * <p>{@link #PENDING_AUDIT} 仅在申请时带 {@code audit=true} 出现；C 端默认仍是
+ * 「申请即退款」，直接从 {@link #REFUNDING} 开始，保持既有契约。
  */
 public enum RefundStatus {
 

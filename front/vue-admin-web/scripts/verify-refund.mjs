@@ -139,7 +139,9 @@ try {
   })`))
   console.log('  退款页状态:', refundPage)
   await shot('30-refund-list')
-  check('退款状态 Tab 已渲染（全部 + 3 态）', refundPage.tabs.length === 4, refundPage.tabs.join('/'))
+  check('退款状态 Tab 已渲染（全部 + 4 态，含待审核）',
+    refundPage.tabs.length === 5 && refundPage.tabs.includes('待审核'),
+    refundPage.tabs.join('/'))
   check('退款表格有数据', refundPage.rows > 0, `${refundPage.rows} 行`)
   check('表头含退款单号/订单号/退款金额/状态',
     ['退款单号','订单号','退款金额','状态'].every(h => refundPage.headers.includes(h)),

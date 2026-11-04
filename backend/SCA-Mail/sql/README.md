@@ -10,12 +10,13 @@
 | `04_seed_data.sql` | 上述三个库 | 开发用种子数据（分类、品牌、商品、SKU、库存），可重复执行 |
 | `05_mall_user.sql` | `mall_user` | `user`（用户档案） |
 | `06_mall_auth.sql` | `mall_auth` | `user_account`（账号凭证）、`refresh_token`（刷新令牌轮换登记）、`token_blacklist`（Sa-Token 迁移前遗留表，已停用）、`login_log`（登录审计） |
-| `07_seed_user_auth.sql` | `mall_auth` / `mall_user` | 开发用种子账号（admin / buyer01 / operator01），可重复执行 |
+| `07_seed_user_auth.sql` | `mall_auth` / `mall_user` | 开发用种子账号（admin / buyer01 / operator01 / cs01），可重复执行 |
 | `08_mall_pay.sql` | `mall_pay` | `payment`（支付单）、`payment_callback_log`（回调流水）、`refund`（退款单）、`pay_reconcile_diff`（对账差异），见需求文档 28.3 |
 | `09_mall_mq.sql` | `mall_order` / `mall_pay` / `mall_inventory` | `local_message`（本地消息表 Outbox，落在生产方库 order / pay）、`consumed_message`（消费幂等表，落在消费方库 inventory / order / pay），见需求文档 19.6 / 20.3 |
 | `10_inventory_operator_audit.sql` | `mall_inventory` | 为库存流水增加可信操作人 ID/用户名字段（兼容 MySQL 8.0.32，可重复执行） |
 | `11_order_shipping.sql` | `mall_order` | 为订单增加物流公司、物流单号、发货时间与发货人字段（UC-ORDER-07，可重复执行） |
 | `12_order_completed.sql` | `mall_order` | 为订单增加完成时间与索引（UC-ORDER-06 确认收货，可重复执行） |
+| `13_refund_audit.sql` | `mall_pay` | 为退款单增加审核人/审核时间字段（退款审核流，可重复执行） |
 
 ## 执行方式
 

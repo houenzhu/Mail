@@ -3,6 +3,7 @@ package com.zhe.mall.admin.service;
 import com.zhe.mall.api.PayApi;
 import com.zhe.mall.api.dto.AdminRefundDetail;
 import com.zhe.mall.api.dto.AdminRefundPageQuery;
+import com.zhe.mall.api.dto.AdminRefundRejectRequest;
 import com.zhe.mall.api.dto.AdminRefundRow;
 import com.zhe.mall.common.exception.BusinessException;
 import com.zhe.mall.common.result.PageResult;
@@ -21,6 +22,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -102,5 +104,52 @@ class AdminRefundServiceTest {
         when(payApi.adminRefundDetail("R1")).thenReturn(Result.success(detail));
 
         assertThat(adminRefundService.detail("R1")).isSameAs(detail);
+    }
+
+    @Test
+    @DisplayName("审核通过：去掉单号空白后转发，并返回下游详情")
+    void approveForwardsTrimmedNo() {
+        AdminRefundDetail detail = new AdminRefundDetail(null);
+        when(payApi.adminRefundApprove("R1")).thenReturn(Result.success(detail));
+
+        assertThat(adminRefundService.approve(" R1 ")).isSameAs(detail);
+        verify(payApi).adminRefundApprove("R1");
+    }
+
+    @Test
+    @DisplayName("审核通过：空单号直接拒绝，不打下游")
+    void approveRejectsBlank() {
+        assertThatThrownBy(() -> adminRefundService.approve(" "))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getCode())
+                .isEqualTo(ResultCode.PARAM_MISSING.getCode());
+        verify(payApi, never()).adminRefundApprove(any());
+    }
+
+    @Test
+    @DisplayName("驳回：空 body 也要构造请求，避免下游 400")
+    void rejectDefaultsBody() {
+        when(payApi.adminRefundReject(eq("R1"), any(AdminRefundRejectRequest.class)))
+                .thenReturn(Result.success(new AdminRefundDetail(null)));
+
+        adminRefundService.reject("R1", null);
+
+        ArgumentCaptor<AdminRefundRejectRequest> captor =
+                ArgumentCaptor.forClass(AdminRefundRejectRequest.class);
+        verify(payApi).adminRefundReject(eq("R1"), captor.capture());
+        assertThat(captor.getValue().reason()).isNull();
+    }
+
+    @Test
+    @DisplayName("驳回：下游状态冲突（35006）原样透传")
+    void rejectPropagatesStatusConflict() {
+        when(payApi.adminRefundReject(eq("R1"), any()))
+                .thenReturn(Result.failure(ResultCode.REFUND_STATUS_ILLEGAL, "退款单状态不允许驳回"));
+
+        assertThatThrownBy(() -> adminRefundService.reject("R1",
+                new AdminRefundRejectRequest("不通过")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getCode())
+                .isEqualTo(ResultCode.REFUND_STATUS_ILLEGAL.getCode());
     }
 }

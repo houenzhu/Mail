@@ -66,9 +66,9 @@ public class AdminRefundQueryService {
         return new AdminRefundDetail(toRow(refund));
     }
 
-    /** 待处理退款单数（看板概览）。 */
+    /** 待处理退款单数（看板概览）：待审核(0) + 退款中(10)。 */
     public long pendingCount() {
-        return refundMapper.countByStatus(RefundStatus.PENDING_AUDIT.code());
+        return refundMapper.countPending();
     }
 
     private AdminRefundPageQuery normalize(AdminRefundPageQuery query) {
@@ -121,7 +121,9 @@ public class AdminRefundQueryService {
         return new AdminRefundRow(refund.getRefundNo(), refund.getPaymentNo(), refund.getOrderNo(),
                 refund.getUserId(), refund.getAmount(), refund.getStatus(),
                 RefundStatus.of(refund.getStatus()).label(), refund.getReason(),
-                refund.getOperator(), refund.getOperatorId(), refund.getChannelRefundNo(),
+                refund.getOperator(), refund.getOperatorId(),
+                refund.getAuditedBy(), refund.getAuditedById(), refund.getAuditedAt(),
+                refund.getChannelRefundNo(),
                 refund.getAppliedAt(), refund.getFinishedAt(), refund.getFailReason(),
                 refund.getCreatedAt());
     }

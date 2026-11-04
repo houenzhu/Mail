@@ -13,7 +13,7 @@ import java.math.BigDecimal;
  * @param ordersToday   今日订单数（按 created_at 落在今天，含未支付）
  * @param toShip        待发货订单数（status=20）
  * @param refunding     退款中订单数（status=60）
- * @param refundPending 待处理的退款单数（refund.status=10）
+ * @param refundPending 待处理的退款单数（refund.status in (0, 10)：待审核 + 退款中）
  */
 public record AdminDashboardOverview(
         BigDecimal gmvToday,

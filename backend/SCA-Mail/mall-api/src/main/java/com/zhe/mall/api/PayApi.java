@@ -2,6 +2,7 @@ package com.zhe.mall.api;
 
 import com.zhe.mall.api.dto.AdminRefundDetail;
 import com.zhe.mall.api.dto.AdminRefundPageQuery;
+import com.zhe.mall.api.dto.AdminRefundRejectRequest;
 import com.zhe.mall.api.dto.AdminRefundRow;
 import com.zhe.mall.common.result.PageResult;
 import com.zhe.mall.common.result.Result;
@@ -36,4 +37,17 @@ public interface PayApi {
      */
     @GetMapping("/admin/refund/pending-count")
     Result<Long> adminRefundPendingCount();
+
+    /**
+     * 审核通过：待审核(0) → 退款中(10) → 渠道退款 → 成功(20)。
+     *
+     * <p>返回审核后的完整退款单（含审核人 / 审核时间），BFF 不再单独回读。
+     */
+    @PostMapping("/admin/refund/{refundNo}/approve")
+    Result<AdminRefundDetail> adminRefundApprove(@PathVariable("refundNo") String refundNo);
+
+    /** 审核驳回：待审核(0) → 失败(30)，原因落 fail_reason，释放幂等键。 */
+    @PostMapping("/admin/refund/{refundNo}/reject")
+    Result<AdminRefundDetail> adminRefundReject(@PathVariable("refundNo") String refundNo,
+                                                @RequestBody AdminRefundRejectRequest request);
 }
