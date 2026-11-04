@@ -10,7 +10,7 @@
 | :--- | :--- | :--- |
 | 后端 | Spring Cloud Alibaba 微服务；注册/认证、商品与分类品牌、订单、库存管理、支付退款、Redis、RocketMQ；`mall-admin` 提供管理 BFF；管理读取已有 staff 双层授权 | 客服订单/退款工作流、数据看板、营销业务 |
 | 管理后台 | 登录与权限、商品管理、分类品牌 CRUD、库存调整与流水、订单管理（分页/详情/状态时间线）、订单发货与后台退款查询、**多标签页令牌同步（0.4.0）** | 退款审核/驳回工作流、看板仍为占位或未接通 |
-| 买家端 | Vue/Vite 脚手架 | 商城页面、API、购物车、结算及用户流程尚未实现 |
+| 买家端 | Vue/Vite：首页、分类导航、轮播、搜索页、商品卡片体系、功能预告页；商品接口已接通并支持降级 | 登录注册、商品详情、购物车、结算及个人中心 |
 | AI 客服 | 尚无 Agent、知识库、会话/工单存储或模型接入 | 需求边界与起步方案见后端需求文档第 30 章 |
 
 ### 当前需要优先核对的事项
@@ -31,7 +31,7 @@
 - [管理后台使用与实现状态](front/vue-admin-web/README.md)
 - [管理后台实施计划与当前进度](admin-frontend-plan.md)
 - [商品维护与库存阶段计划](.trae/documents/m3-商品维护与库存-实施计划.md)
-- [买家端前端状态](front/vue-mall/README.md)
+- [买家端前端状态与组件规范](front/vue-mall/README.md)、[前端架构文档](front/vue-mall/docs/frontend-architecture.md)
 
 ## 版本管理
 
@@ -41,7 +41,8 @@
 
 - 后端：按 [后端 README](backend/SCA-Mail/README.md) 准备 MySQL、Redis、Nacos、RocketMQ 后运行 Maven 和服务脚本。
 - 管理后台：在 `front/vue-admin-web` 执行 `npm install`、`npm run dev`；开发代理将 `/api` 转发到本机网关，当前 `.env.development` 使用真实接口（`VITE_USE_MOCK=false`）。
-- 买家端：在 `front/vue-mall` 执行 `npm install`、`npm run dev`；目前只用于查看脚手架页面。
+- 买家端：在 `front/vue-mall` 执行 `npm install`、`npm run dev`（默认 `http://127.0.0.1:5175`，`/api` 代理到本机网关）；首页已可用，页面清单见该目录 README。
 
 各文档中的 E2E 结果是其记录日期时的本机验证结果，不代表本次文档整理重新运行了整套服务验收。
+
 
