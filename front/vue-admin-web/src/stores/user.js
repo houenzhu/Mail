@@ -110,6 +110,17 @@ export const useUserStore = defineStore('user', {
       setTokens(data.accessToken, data.refreshToken)
     },
 
+    /**
+     * 其他标签页刷新了令牌（或注销）：把 localStorage 的最新值同步进内存。
+     *
+     * 不在这里清 profile —— 令牌变化不等于身份变化，是否需要重新拉取
+     * 由调用方（main.js 的 storage 监听）按「有没有令牌」决定。
+     */
+    syncTokens({ accessToken, refreshToken }) {
+      this.accessToken = accessToken
+      this.refreshToken = refreshToken
+    },
+
     /** 令牌已过期且无法刷新（由 request.js 回调） */
     reset() {
       this.accessToken = null

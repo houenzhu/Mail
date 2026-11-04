@@ -42,6 +42,16 @@ function fill(account) {
   form.password = account.password
 }
 
+/**
+ * 只接受站内绝对路径，避免 `redirect` 被构造成 `https://evil.com` 或 `//evil.com`
+ * 造成登录后的站外跳转（开放重定向）。非法值一律回落到工作台。
+ */
+function safeRedirect(value) {
+  if (typeof value !== 'string') return '/workbench'
+  if (!value.startsWith('/') || value.startsWith('//') || value.startsWith('/\\')) return '/workbench'
+  return value
+}
+
 async function onSubmit() {
   const valid = await formRef.value.validate().catch(() => false)
   if (!valid) return
@@ -50,8 +60,7 @@ async function onSubmit() {
   try {
     await userStore.login({ ...form })
     ElMessage.success('登录成功')
-    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/workbench'
-    router.replace(redirect)
+    router.replace(safeRedirect(route.query.redirect))
   } catch (e) {
     // 后端错误码文案优先（31004 账号或密码错误 / 20003 无权限 / 31005 锁定）
     ElMessage.error(e?.message || '登录失败，请稍后重试')

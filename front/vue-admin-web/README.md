@@ -2,6 +2,8 @@
 
 Vue 3.5 + Vite 8 + Vue Router 5 + Pinia 4 + Element Plus + axios。管理后台当前已接通认证、商品管理、分类/品牌维护、库存调整与流水查询，以及订单查询、订单发货和退款单查询；退款审核工作流与数据看板仍未闭环。
 
+认证层已支持**多标签页令牌同步**：多个标签同时过期时只发一次 `/auth/refresh`，避免后端重放检测把全端踢下线。
+
 实施记录见 [管理后台计划](../../admin-frontend-plan.md)，后端契约以 [商场微服务需求文档](../../backend/SCA-Mail/商场微服务项目需求文档（V1.0）.md) 为准。
 
 ## 启动
@@ -41,9 +43,14 @@ Vite 默认监听 5174，开发代理把 `/api` 转发到 `http://127.0.0.1:1000
 
 1. Access token 固定 300 秒，不滑动续期；过期后走 `/api/auth/refresh`。
 2. Refresh token 一次一换，刷新必须 single-flight；并发刷新或重放旧 token 会导致会话被强制下线。
-3. 请求层默认统一显示错误；调用方自行展示时要传 `{ skipErrorToast: true }`，避免重复提示。
-4. `main.js` 中先引入 Element Plus 样式，再引入项目主题样式；后者需要覆盖 Element Plus 变量。
-5. 前端路由和按钮权限只用于体验；服务端角色校验才是安全边界。库存读取/流水要求 staff，库存调整由 BFF 与 `mall-inventory` 两层限制为运营/管理员。
+   本标签内由请求层单飞，**跨标签由 `src/api/refresh-lock.js` 互斥**（Web Locks，退化 localStorage 租约锁）；
+   抢到锁后先比对 `localStorage` 中的令牌，其他标签已刷新则直接复用，绝不再发第二次 refresh。
+3. 其他标签刷新/登录/退出时，`storage` 事件会把最新令牌同步进本标签；令牌被清除则回到登录页
+   （不整页 reload，保留当前筛选条件）。
+4. 登录后的 `redirect` 只接受站内绝对路径（`/...`），站外 URL 与 `//host` 一律回落到工作台。
+5. 请求层默认统一显示错误；调用方自行展示时要传 `{ skipErrorToast: true }`，避免重复提示。
+6. `main.js` 中先引入 Element Plus 样式，再引入项目主题样式；后者需要覆盖 Element Plus 变量。
+7. 前端路由和按钮权限只用于体验；服务端角色校验才是安全边界。库存读取/流水要求 staff，库存调整由 BFF 与 `mall-inventory` 两层限制为运营/管理员。
 
 ## 验收脚本
 
@@ -52,6 +59,7 @@ npm run build
 npm run dev                 # 另开终端
 npm run verify:ui           # 无头浏览器渲染页面并截图
 npm run verify:login        # 登录、会话恢复、无令牌跳转、买家拒绝
+npm run verify:multitab     # 多标签页令牌同步：并发 401 只刷新一次、退出后另一标签跟随
 npm run verify:order        # 订单管理页：分页、详情抽屉、状态 Tab（M4 查询）
 npm run verify:refund       # 退款列表/详情 + 订单发货弹窗（M4 第二切片）
 ```

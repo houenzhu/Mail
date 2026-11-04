@@ -1,6 +1,7 @@
 import axios from 'axios'
 
 import { getUseMock } from '@/mock'
+import { withRefreshLock } from './refresh-lock'
 
 /**
  * 统一请求层。
@@ -54,6 +55,20 @@ export function clearTokens() {
   localStorage.removeItem(REFRESH_KEY)
 }
 
+/**
+ * 监听其他标签页对令牌的写入/清除。
+ *
+ * `storage` 事件只会在**其他**标签页触发，因此这里不会与当前标签的写入形成回环。
+ * 回调拿到的是事件发生后的最新令牌，调用方据此同步内存态或跳转登录页。
+ */
+export function onTokenStorageChange(handler) {
+  window.addEventListener('storage', (event) => {
+    if (event.storageArea !== localStorage) return
+    if (event.key !== null && event.key !== ACCESS_KEY && event.key !== REFRESH_KEY) return
+    handler({ accessToken: getAccessToken(), refreshToken: getRefreshToken() })
+  })
+}
+
 /* ---------------- 登录态失效回调（由 store 注册，避免循环依赖） ---------------- */
 
 let onUnauthorized = null
@@ -67,32 +82,39 @@ export function setUnauthorizedHandler(handler) {
 let refreshing = null
 
 /**
- * 刷新令牌。同一时刻只允许一个刷新在飞，其余请求等待同一 Promise 的结果。
- * 这是硬要求：并发 refresh 会触发后端「重放检测 → 强制下线」。
+ * 刷新令牌。两层互斥缺一不可：
+ *  1. 本标签内单飞：同一时刻只允许一个刷新在飞，其余请求等待同一 Promise；
+ *  2. 跨标签互斥：抢到锁后先比对本地令牌，若别的标签已经完成刷新就直接复用，
+ *     绝不能再拿旧 refreshToken 请求一次（会被后端判为重放并强制全端下线）。
+ *
+ * @param {string} [staleAccessToken] 触发 401 时使用的访问令牌。
  */
-function refreshTokens() {
+function refreshTokens(staleAccessToken) {
   if (refreshing) return refreshing
 
-  const refreshToken = getRefreshToken()
-  if (!refreshToken) return Promise.reject(new Error('NO_REFRESH_TOKEN'))
+  const task = withRefreshLock(async () => {
+    const currentAccessToken = getAccessToken()
+    if (staleAccessToken && currentAccessToken && currentAccessToken !== staleAccessToken) {
+      return currentAccessToken
+    }
 
-  refreshing = http
-    .post(
+    const refreshToken = getRefreshToken()
+    if (!refreshToken) throw new Error('NO_REFRESH_TOKEN')
+
+    // 响应拦截器已把 Result 解包成 data，这里拿到的就是 LoginVO
+    const data = await http.post(
       '/auth/refresh',
       { refreshToken },
       { skipAuth: true, skipErrorToast: true, _isRefresh: true },
     )
-    .then((res) => {
-      const body = res.data
-      if (!body || body.code !== CODE.SUCCESS || !body.data) {
-        throw new Error(body?.message || 'REFRESH_FAILED')
-      }
-      setTokens(body.data.accessToken, body.data.refreshToken)
-      return body.data.accessToken
-    })
-    .finally(() => {
-      refreshing = null
-    })
+    if (!data?.accessToken || !data?.refreshToken) throw new Error('REFRESH_FAILED')
+    setTokens(data.accessToken, data.refreshToken)
+    return data.accessToken
+  })
+
+  refreshing = task.finally(() => {
+    refreshing = null
+  })
 
   return refreshing
 }
@@ -211,7 +233,7 @@ async function handleUnauthorized(config, body) {
   }
 
   try {
-    const newToken = await refreshTokens()
+    const newToken = await refreshTokens(bearerToken(config) ?? getAccessToken())
     const retryConfig = { ...config, _retried: true }
     retryConfig.headers = { ...(config.headers || {}), Authorization: `Bearer ${newToken}` }
     return http.request(retryConfig)
@@ -219,6 +241,13 @@ async function handleUnauthorized(config, body) {
     failLogin('登录已过期，请重新登录')
     return Promise.reject(e)
   }
+}
+
+/** 取出失败请求实际使用的令牌，用于判断是否已被其他标签页刷新过 */
+function bearerToken(config) {
+  const header = config?.headers?.Authorization
+  if (typeof header !== 'string' || !header.startsWith('Bearer ')) return null
+  return header.slice('Bearer '.length) || null
 }
 
 function failLogin(message) {

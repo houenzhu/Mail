@@ -275,7 +275,7 @@ front/vue-admin-web/
 | :--- | :--- | :--- |
 | 1 | 刷新令牌**一次一换**，重放旧令牌会**强制全端下线** | 刷新必须**串行单飞**（`isRefreshing` 标志 + 等待队列），绝不能并发发两个 refresh |
 | 2 | accessToken 仅 300s，后台页面会连续发多个请求 | 页面挂载时的并发请求极易同时撞 401 → 必须有**请求重放队列**，否则会出现"刷新成功但几个请求已被判失败" |
-| 3 | 多标签页会各自持有令牌并各自刷新 → 触发重放踢人 | 用 `localStorage` 事件或 `BroadcastChannel` 同步令牌，或引入"刷新锁"避免多标签同时刷新。**M1 先做单标签可靠，多标签同步列为 M2 收尾项** |
+| 3 | 多标签页会各自持有令牌并各自刷新 → 触发重放踢人 | 用 `localStorage` 事件或 `BroadcastChannel` 同步令牌，或引入"刷新锁"避免多标签同时刷新。**✅ 0.4.0 已实现**：`refresh-lock.js` 跨标签互斥（Web Locks，退化 localStorage 租约锁）+ `storage` 事件同步登录态 |
 
 ### 6.3 统一响应解包
 
@@ -445,6 +445,9 @@ response => {
 
 > **状态更新（2026-11-04）：订单与退款切片已落地。** 后台订单分页/详情/发货与退款单分页/详情
 > 均已接真实接口并完成 E2E 验收。退款审核/驳回工作流属第四阶段，不在本里程碑。
+>
+> **M4 已收尾（0.4.0）**：多标签页令牌同步完成，双标签并发 401 只触发一次 refresh。
+> 至此 M1~M4 的后台主流程全部闭环，M5（工作台/看板）是唯一未开工的可选里程碑。
 
 - [x] **后端配套（查询部分）**：`POST /api/admin/order/page`（G-04：全量 + 订单号/买家/状态/日期筛选）、`GET /api/admin/order/{orderNo}`（运营视角详情）
   - `mall-order` 新增 `AdminOrderController` + `AdminOrderQueryService`（类级 `@RequireStaff`，与 C 端查询分开挂载）
@@ -457,7 +460,12 @@ response => {
   - 新增 `sql/11_order_shipping.sql` 补物流字段；状态与物流同条 CAS，重复提交同单号幂等
   - 前端详情抽屉「发货」弹窗，仅 OPERATOR/ADMIN 可见（修正了前端角色包含关系）
 - [x] 退款列表与详情（`/api/admin/refund/page`、`/{refundNo}`，mall-pay 类级 `@RequireStaff`）
-- [ ] （收尾）多标签页令牌同步
+- [x] （收尾）多标签页令牌同步（0.4.0）
+  - `src/api/refresh-lock.js`：跨标签互斥锁；抢到锁后比对本地令牌，其他标签已刷新则直接复用
+  - 修正刷新响应解析缺陷（拦截器已解包 `Result`，旧代码多取一层 `data`，无感刷新恒失败）
+  - `storage` 事件同步：其他标签刷新/登录/退出后跟随，不整页 reload
+  - 登录页 `redirect` 收敛为站内路径，修掉开放重定向
+  - 验收 `npm run verify:multitab` 9 项全绿（双标签并发 401 仅一次 refresh）；`verify:login` 扩至 11 项
 - **验收（发货 + 退款切片，2026-11-04 已执行）**：
   - 后端单测 22 个（mall-order 7 + mall-pay 7 + mall-admin 8）全绿，三模块合计 47 个；
   - E2E 15 项通过：发货 `20 → 30` 并落物流字段、重复同单号幂等（日志仍为 3 条）、改单号 `34002`、
@@ -574,7 +582,8 @@ response => {
 | **M1 底座与登录** | ✅ 前端部分完成 | `front/vue-admin-web` 骨架改造完成：入口/路由/主题/请求层/登录页/AdminLayout/404。**后端配套（网关 CORS、`mall-admin`、`@RequireStaff`）未做**，故 M1 整体未闭环 |
 | **M2 商品管理（样板页）** | ✅ 前端部分完成 | 「我的商品」列表页：状态 Tab（带计数）/ 筛选栏 / 表格 / 分页 / 上下架 / 批量上下架 / 删除；`useTable`·`useDict`·`usePermission` 三个 composable 已沉淀。**`GET /api/admin/product/page` 未实现，当前走 mock** |
 | M3 | ✅ 已接通 | 商品/SKU 维护、分类品牌 CRUD、按 SKU 调整库存、库存流水分页；完整手工验收待本轮服务启动后进行 |
-| M4 / M5 | 🚧 部分占位 | 后台订单/退款与数据看板仍为占位或未接接口 |
+| M4 | ✅ 已完成 | 订单分页/详情/发货、退款查询、多标签页令牌同步均已交付并验收（0.4.0） |
+| M5 | ⛔ 未开工 | 数据看板仍为占位；`GET /api/admin/dashboard` 未实现 |
 
 **验证方式（不是"能构建"就算过）**：用无头 Chrome 通过 CDP 真实渲染并断言，脚本随工程提交：
 
@@ -583,9 +592,11 @@ cd front/vue-admin-web
 npm run dev            # 另开终端
 npm run verify:ui      # 渲染各页面 + 截图到 verify-out/
 npm run verify:login   # 真实走登录/会话恢复/无令牌重定向/买家被拒
+npm run verify:multitab # 多标签页令牌同步（双标签并发 401 只刷新一次）
 ```
 
-`verify:login` 实测 8/8 通过；`npm run build` 通过（1689 modules，各页面按路由分块懒加载）。
+`verify:login` 已扩充到 11 项（含登录后 redirect 回原页、站外 redirect 被忽略）；
+`verify:multitab` 9 项；`npm run build` 通过（各页面按路由分块懒加载）。
 
 **实测发现并修复的 3 个真缺陷**（只跑构建是发现不了的，记录备查）：
 

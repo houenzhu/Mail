@@ -13,7 +13,7 @@ import { ElMessage } from 'element-plus'
 
 import App from './App.vue'
 import router from './router'
-import { setErrorNotifier, setUnauthorizedHandler } from '@/api/request'
+import { onTokenStorageChange, setErrorNotifier, setUnauthorizedHandler } from '@/api/request'
 import { useUserStore } from '@/stores/user'
 
 const app = createApp(App)
@@ -40,6 +40,37 @@ setUnauthorizedHandler((message) => {
     router.replace({ name: 'login', query: { redirect: router.currentRoute.value.fullPath } })
   }
   if (message) ElMessage.warning(message)
+})
+
+/*
+ * 跨标签页登录态同步。
+ *
+ * 一个标签页刷新令牌、登录或退出后，其它标签通过 `storage` 事件跟随：
+ *  - 令牌被清除（注销/刷新失败）→ 本标签也清态并回登录页，避免继续用死令牌发请求；
+ *  - 令牌被更新（其他标签完成刷新）→ 只同步内存令牌；
+ *  - 从无令牌变为有令牌（其他标签完成登录）→ 重新拉取用户信息。
+ *
+ * 这里刻意不整页 reload：运营常开着多个查询页，强制刷新会丢失筛选条件。
+ */
+onTokenStorageChange(({ accessToken, refreshToken }) => {
+  const userStore = useUserStore()
+  if (!accessToken) {
+    userStore.reset()
+    if (router.currentRoute.value.name !== 'login') {
+      router.replace({
+        name: 'login',
+        query: { redirect: router.currentRoute.value.fullPath },
+      })
+      ElMessage.warning('账号已在其他标签页退出登录')
+    }
+    return
+  }
+
+  const hadProfile = Boolean(userStore.profile)
+  userStore.syncTokens({ accessToken, refreshToken })
+  if (!hadProfile) {
+    userStore.restore()
+  }
 })
 
 app.mount('#app')

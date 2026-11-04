@@ -181,6 +181,33 @@ try {
   await shot('11-buyer-denied')
   check('仍停留在登录页', afterBuyer.path === '/login', afterBuyer.path)
   check('给出拒绝提示', /后台访问权限|无权限/.test(afterBuyer.toast), afterBuyer.toast)
+
+  console.log('\n场景 D：带 redirect 参数登录后回到原页面')
+  await call('Page.navigate', { url: `${BASE_URL}/login?redirect=/order/list` })
+  await sleep(2000)
+  console.log('  填表:', await fillForm('operator01', 'Operator@123456'))
+  console.log('  点击登录:', await clickLogin())
+  await sleep(2500)
+  const afterRedirect = JSON.parse(
+    await evaluate(`JSON.stringify({ path: location.pathname, hasSidebar: !!document.querySelector('.sidebar') })`),
+  )
+  console.log('  结果:', afterRedirect)
+  check('登录后跳回 redirect 指定页面', afterRedirect.path === '/order/list', afterRedirect.path)
+  check('后台框架仍正常渲染', afterRedirect.hasSidebar)
+
+  console.log('\n场景 E：恶意 redirect 不得跳出站点')
+  await evaluate(`localStorage.clear(); 'cleared'`)
+  await call('Page.navigate', { url: `${BASE_URL}/login?redirect=https://example.com/steal` })
+  await sleep(2000)
+  console.log('  填表:', await fillForm('operator01', 'Operator@123456'))
+  console.log('  点击登录:', await clickLogin())
+  await sleep(2500)
+  const afterEvil = JSON.parse(
+    await evaluate(`JSON.stringify({ path: location.pathname, origin: location.origin })`),
+  )
+  console.log('  结果:', afterEvil)
+  check('站外 redirect 被忽略', afterEvil.path === '/workbench', afterEvil.path)
+  check('未离开本站', afterEvil.origin === new URL(BASE_URL).origin, afterEvil.origin)
 } catch (e) {
   console.error('执行失败:', e.message)
   failures++
