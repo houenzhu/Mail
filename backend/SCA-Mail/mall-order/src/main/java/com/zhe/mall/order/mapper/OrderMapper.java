@@ -1,5 +1,6 @@
 package com.zhe.mall.order.mapper;
 
+import com.zhe.mall.api.dto.AdminOrderPageQuery;
 import com.zhe.mall.order.dto.OrderPageQuery;
 import com.zhe.mall.order.entity.Order;
 import org.apache.ibatis.annotations.Mapper;
@@ -41,4 +42,11 @@ public interface OrderMapper {
                       @Param("cancelReason") String cancelReason);
 
     List<Order> selectTimeoutCandidates(@Param("limit") int limit);
+    /* ---------------- 后台订单查询 ---------------- */
+
+    List<Order> selectAdminPage(@Param("query") AdminOrderPageQuery query,
+                                @Param("offset") int offset,
+                                @Param("limit") int limit);
+
+    long countAdminPage(@Param("query") AdminOrderPageQuery query);
 }

@@ -21,4 +21,15 @@
              #{item.skuSpec}, #{item.price}, #{item.qty}, #{item.totalAmount})
         </foreach>
     </insert>
+
+    <!-- 后台订单列表的件数/数量：一次按订单号批量聚合，避免逐行 N+1 -->
+    <select id="selectStatsByOrderNos" resultType="com.zhe.mall.order.dto.OrderItemStat">
+        select order_no as orderNo, count(1) as itemCount, coalesce(sum(qty), 0) as totalQty
+        from order_item
+        where order_no in
+        <foreach collection="orderNos" item="orderNo" open="(" separator="," close=")">
+            #{orderNo}
+        </foreach>
+        group by order_no
+    </select>
 </mapper>

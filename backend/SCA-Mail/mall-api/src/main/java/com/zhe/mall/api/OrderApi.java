@@ -1,8 +1,12 @@
 package com.zhe.mall.api;
 
+import com.zhe.mall.api.dto.AdminOrderDetail;
+import com.zhe.mall.api.dto.AdminOrderPageQuery;
+import com.zhe.mall.api.dto.AdminOrderRow;
 import com.zhe.mall.api.dto.OrderPayView;
 import com.zhe.mall.api.dto.PayCallbackRequest;
 import com.zhe.mall.api.dto.RefundCallbackRequest;
+import com.zhe.mall.common.result.PageResult;
 import com.zhe.mall.common.result.Result;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -37,4 +41,19 @@ public interface OrderApi {
     @PostMapping("/internal/{orderNo}/refund-callback")
     Result<OrderPayView> refundCallback(@PathVariable("orderNo") String orderNo,
                                         @RequestBody RefundCallbackRequest request);
+
+    /* ---------------- 后台管理接口（mall-admin 经 Feign 调用，服务端要求 staff） ---------------- */
+
+    /**
+     * 后台订单分页：不按用户过滤，支持订单号 / 买家 / 状态 / 创建时间区间筛选。
+     *
+     * <p>用 POST + body：筛选条件多且大多可选，body 比一长串 query 更清晰。
+     */
+    @PostMapping("/admin/page")
+    Result<PageResult<AdminOrderRow>> adminPage(@RequestBody AdminOrderPageQuery query);
+
+    /** 后台订单详情：订单主体 + 明细 + 状态流转时间线（运营视角，不限订单归属）。 */
+    @GetMapping("/admin/{orderNo}")
+    Result<AdminOrderDetail> adminDetail(@PathVariable("orderNo") String orderNo);
 }
+

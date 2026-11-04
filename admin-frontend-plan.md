@@ -443,15 +443,24 @@ response => {
 
 ### M4 订单与退款
 
-> **状态：未开始后台闭环。** 买家侧订单、支付和退款服务存在，但管理端全量订单、发货、退款列表与客服处理接口尚未实现。
+> **状态更新（2026-11-04）：查询切片已落地。** 后台订单分页与详情已接真实接口并完成 E2E 验收；
+> 发货与退款工作流仍未实现，是本里程碑的剩余部分。
 
-- [ ] **后端配套**：`GET /api/admin/order/page`（G-04，全量 + 筛选）、发货（G-05）
-- [ ] 订单列表（状态 Tab、订单号/买家/时间筛选）
-- [ ] 订单详情（明细、收货信息、金额、**状态流转时间线**）
-- [ ] 发货操作
+- [x] **后端配套（查询部分）**：`POST /api/admin/order/page`（G-04：全量 + 订单号/买家/状态/日期筛选）、`GET /api/admin/order/{orderNo}`（运营视角详情）
+  - `mall-order` 新增 `AdminOrderController` + `AdminOrderQueryService`（类级 `@RequireStaff`，与 C 端查询分开挂载）
+  - `mall-admin` 新增 `AdminOrderController` + `AdminOrderService`（BFF 转发，**不做降级**——订单是核心视图，下游失败必须报错）
+  - 列表的件数/数量用一次 `GROUP BY` 批量聚合，避免逐单 N+1（有专门单测防回归）
+  - 时间筛选支持 `yyyy-MM-dd`（结束日自动补 23:59:59.999）与 `yyyy-MM-dd HH:mm:ss`；非法格式报参数错误而非静默忽略
+- [x] 订单列表（状态 Tab、订单号/买家/时间筛选）
+- [x] 订单详情（明细、收货信息、金额、**状态流转时间线**）
+- [ ] 发货操作（`POST /api/admin/order/{orderNo}/ship`，G-05 / UC-ORDER-07）
 - [ ] 退款列表与详情
 - [ ] （收尾）多标签页令牌同步
-- **验收**：C 端下单支付后，后台能看到该订单并发货，状态流转与 C 端一致。
+- **验收（查询切片，2026-11-04 已执行）**：
+  - 后端单测 17 个（mall-order 11 + mall-admin 6）全绿，含 Mapper XML 离线解析校验；
+  - E2E 14 项通过：分页（total=18）、status=20（4 笔）/status=50（10 笔）与 SQL 抽查一致、订单号精确、日期区间、买家筛选、
+    非法状态/时间报 10003、详情明细与时间线、订单不存在 34001、匿名 401、买家 403、直连下游 401；
+  - UI 验收 `npm run verify:order` 全绿：列表渲染、详情抽屉、Tab 切换筛选、截图留档 `verify-out/20~22-*.png`。
 
 ### M5 工作台与看板（可选）
 
@@ -649,3 +658,4 @@ Test-Path (Join-Path $env:TEMP 'pipatch\out\sun\nio\ch\PipeImpl.class')
 
 > **历史决策（V1.2）**：后台 = `front/vue-admin-web`，C 端 = `front/vue-mall`，采用 `mall-admin` BFF(8111)、Element Plus、纯 JS，并修复商品写接口越权。该决策已执行；`vue-mall` 不再是待重命名目录。
 > `Q5`（M5 看板）尚未交付，仍取决于 dashboard 接口和订单/支付统计口径。
+
