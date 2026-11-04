@@ -1,15 +1,81 @@
 <script setup>
-import { ref } from 'vue'
-import { RouterLink } from 'vue-router'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { RouterLink, useRoute } from 'vue-router'
 import AppIcon from '@/components/common/AppIcon.vue'
 import SearchBar from './SearchBar.vue'
 import { headerShortcuts } from '@/data/homeContent'
+import { useUserStore } from '@/stores/user'
 
 defineProps({
   compact: { type: Boolean, default: false },
 })
 
+const route = useRoute()
+const userStore = useUserStore()
 const open = ref(false)
+const accountMenuOpen = ref(false)
+const accountMenuRef = ref(null)
+const accountTriggerRef = ref(null)
+
+const isLoggedIn = computed(() => userStore.isLoggedIn)
+const displayName = computed(() => userStore.displayName)
+
+const shortcuts = computed(() =>
+  headerShortcuts.map((item) => {
+    if (item.feature === 'orders' || item.feature === 'favorites') {
+      return { ...item, requiresAuth: true }
+    }
+    return item
+  }),
+)
+
+function targetFor(item) {
+  if (item.feature === 'orders' && isLoggedIn.value) {
+    return { name: 'account' }
+  }
+  if (item.feature === 'favorites' && isLoggedIn.value) {
+    return { name: 'account' }
+  }
+  return { name: 'feature', params: { feature: item.feature } }
+}
+
+function closeAccountMenu() {
+  accountMenuOpen.value = false
+}
+
+function onDocumentPointerDown(event) {
+  if (!accountMenuOpen.value) return
+  const target = event.target
+  if (accountMenuRef.value?.contains(target) || accountTriggerRef.value?.contains(target)) return
+  closeAccountMenu()
+}
+
+function onDocumentKeydown(event) {
+  if (event.key !== 'Escape') return
+  if (accountMenuOpen.value) {
+    closeAccountMenu()
+    accountTriggerRef.value?.focus()
+  }
+  open.value = false
+}
+
+watch(
+  () => route.fullPath,
+  () => {
+    open.value = false
+    accountMenuOpen.value = false
+  },
+)
+
+onMounted(() => {
+  document.addEventListener('pointerdown', onDocumentPointerDown)
+  document.addEventListener('keydown', onDocumentKeydown)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', onDocumentPointerDown)
+  document.removeEventListener('keydown', onDocumentKeydown)
+})
 </script>
 
 <template>
@@ -17,20 +83,29 @@ const open = ref(false)
     <div class="site-header__utility">
       <div class="mall-container site-header__utility-inner">
         <div class="site-header__utility-left">
-          <span class="site-header__hello">亲，欢迎来到好物集</span>
-          <RouterLink
-            class="site-header__login"
-            :to="{ name: 'feature', params: { feature: 'login' } }"
-          >
-            请登录
-          </RouterLink>
-          <RouterLink
-            class="site-header__register"
-            :to="{ name: 'feature', params: { feature: 'register' } }"
-          >
-            免费注册
-          </RouterLink>
-          <span class="site-header__divider" aria-hidden="true" />
+          <template v-if="isLoggedIn">
+            <span class="site-header__hello">你好，{{ displayName }}</span>
+            <RouterLink class="site-header__login" :to="{ name: 'account' }">
+              账户中心
+            </RouterLink>
+            <span class="site-header__divider" aria-hidden="true" />
+          </template>
+          <template v-else>
+            <span class="site-header__hello">亲，欢迎来到好物集</span>
+            <RouterLink
+              class="site-header__login"
+              :to="{ name: 'login', query: { redirect: route.fullPath } }"
+            >
+              请登录
+            </RouterLink>
+            <RouterLink
+              class="site-header__register"
+              :to="{ name: 'register', query: { redirect: route.fullPath } }"
+            >
+              免费注册
+            </RouterLink>
+            <span class="site-header__divider" aria-hidden="true" />
+          </template>
           <RouterLink
             class="site-header__utility-link"
             :to="{ name: 'feature', params: { feature: 'accessibility' } }"
@@ -44,10 +119,10 @@ const open = ref(false)
             商城首页
           </RouterLink>
           <RouterLink
-            v-for="item in headerShortcuts"
+            v-for="item in shortcuts"
             :key="item.feature"
             class="site-header__utility-link"
-            :to="{ name: 'feature', params: { feature: item.feature } }"
+            :to="targetFor(item)"
           >
             {{ item.label }}
             <AppIcon v-if="item.feature === 'cart'" name="chevron-down" :size="12" />
@@ -74,9 +149,53 @@ const open = ref(false)
         </div>
 
         <div class="site-header__actions">
+          <div v-if="isLoggedIn" ref="accountMenuRef" class="header-account">
+            <button
+              ref="accountTriggerRef"
+              class="header-account__trigger"
+              type="button"
+              :aria-expanded="accountMenuOpen"
+              aria-haspopup="menu"
+              @click="accountMenuOpen = !accountMenuOpen"
+            >
+              <span class="header-account__avatar" aria-hidden="true">
+                {{ displayName.slice(0, 1) }}
+              </span>
+              <span class="header-account__name">{{ displayName }}</span>
+              <AppIcon name="chevron-down" :size="12" />
+            </button>
+
+            <div v-if="accountMenuOpen" class="header-account__menu" role="menu">
+              <RouterLink role="menuitem" :to="{ name: 'account' }">账户中心</RouterLink>
+              <RouterLink
+                role="menuitem"
+                :to="{ name: 'feature', params: { feature: 'orders' } }"
+              >
+                我的订单
+              </RouterLink>
+              <RouterLink
+                role="menuitem"
+                :to="{ name: 'feature', params: { feature: 'favorites' } }"
+              >
+                我的收藏
+              </RouterLink>
+            </div>
+          </div>
+
+          <RouterLink
+            v-else
+            class="header-action header-action--login"
+            :to="{ name: 'login', query: { redirect: route.fullPath } }"
+          >
+            <AppIcon name="user" :size="18" />
+            <span>登录</span>
+          </RouterLink>
+
           <RouterLink
             class="header-action"
-            :to="{ name: 'feature', params: { feature: 'favorites' } }"
+            :to="isLoggedIn
+              ? { name: 'account' }
+              : { name: 'login', query: { redirect: route.fullPath } }"
           >
             <AppIcon name="heart" :size="20" />
             <span>收藏</span>
@@ -104,10 +223,26 @@ const open = ref(false)
       <div v-if="open" class="site-header__mobile-menu">
         <div class="mall-container site-header__mobile-grid">
           <RouterLink
-            v-for="item in headerShortcuts"
+            v-if="!isLoggedIn"
+            class="site-header__mobile-link site-header__mobile-link--primary"
+            :to="{ name: 'login', query: { redirect: route.fullPath } }"
+            @click="open = false"
+          >
+            登录 / 注册
+          </RouterLink>
+          <RouterLink
+            v-else
+            class="site-header__mobile-link site-header__mobile-link--primary"
+            :to="{ name: 'account' }"
+            @click="open = false"
+          >
+            账户中心
+          </RouterLink>
+          <RouterLink
+            v-for="item in shortcuts"
             :key="item.feature"
             class="site-header__mobile-link"
-            :to="{ name: 'feature', params: { feature: item.feature } }"
+            :to="targetFor(item)"
             @click="open = false"
           >
             {{ item.label }}
@@ -117,7 +252,6 @@ const open = ref(false)
     </div>
   </header>
 </template>
-
 <style scoped>
 .site-header {
   position: relative;
@@ -262,6 +396,75 @@ const open = ref(false)
   gap: 8px;
 }
 
+.header-account {
+  position: relative;
+}
+
+.header-account__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 38px;
+  padding: 0 12px 0 4px;
+  border: 1px solid var(--mall-line-strong);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--mall-ink-2);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.header-account__trigger:hover {
+  border-color: var(--mall-brand);
+  color: var(--mall-brand);
+}
+
+.header-account__avatar {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: linear-gradient(140deg, #ff8a4c, #ff5000);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.header-account__name {
+  max-width: 76px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.header-account__menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  min-width: 148px;
+  padding: 6px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: var(--mall-shadow);
+}
+
+.header-account__menu a {
+  padding: 9px 12px;
+  border-radius: 8px;
+  color: var(--mall-ink-2);
+  font-size: 13px;
+}
+
+.header-account__menu a:hover {
+  background: var(--mall-brand-soft);
+  color: var(--mall-brand);
+}
+
 .header-action {
   position: relative;
   display: inline-flex;
@@ -274,6 +477,7 @@ const open = ref(false)
   background: #fff;
   font-size: 13px;
   color: var(--mall-ink-2);
+  white-space: nowrap;
   transition:
     border-color 0.2s var(--mall-ease),
     color 0.2s var(--mall-ease),
@@ -284,6 +488,11 @@ const open = ref(false)
   border-color: var(--mall-brand);
   color: var(--mall-brand);
   box-shadow: var(--mall-shadow-sm);
+}
+
+.header-action--login {
+  border-color: var(--mall-brand);
+  color: var(--mall-brand);
 }
 
 .header-action--cart {
@@ -347,6 +556,12 @@ const open = ref(false)
   text-align: center;
 }
 
+.site-header__mobile-link--primary {
+  background: var(--mall-brand-soft);
+  color: var(--mall-brand);
+  font-weight: 600;
+}
+
 @keyframes header-menu-in {
   from {
     opacity: 0;
@@ -391,6 +606,10 @@ const open = ref(false)
   }
 
   .header-action {
+    display: none;
+  }
+
+  .header-account {
     display: none;
   }
 

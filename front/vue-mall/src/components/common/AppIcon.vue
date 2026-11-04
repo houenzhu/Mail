@@ -46,6 +46,7 @@ const paths = {
   grid: '<rect x="3" y="3" width="7" height="7" rx="1.6"/><rect x="14" y="3" width="7" height="7" rx="1.6"/><rect x="3" y="14" width="7" height="7" rx="1.6"/><rect x="14" y="14" width="7" height="7" rx="1.6"/>',
   trend: '<path d="m3 17 6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
   eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="2.8"/>',
+  'eye-off': '<path d="M3 3l18 18"/><path d="M10.6 6.1A9.9 9.9 0 0 1 12 6c6 0 9.5 6 9.5 6a17.6 17.6 0 0 1-3.2 3.9"/><path d="M6.2 6.2C3.8 7.8 2.5 12 2.5 12S6 18 12 18a9.6 9.6 0 0 0 4.2-.9"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/>',
 }
 
 const inner = computed(() => paths[props.name] || paths.sparkle)
@@ -77,3 +78,4 @@ const inner = computed(() => paths[props.name] || paths.sparkle)
   flex-shrink: 0;
 }
 </style>
+

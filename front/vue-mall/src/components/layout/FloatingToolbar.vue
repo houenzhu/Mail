@@ -2,8 +2,10 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import AppIcon from '@/components/common/AppIcon.vue'
+import { useUserStore } from '@/stores/user'
 
 const visible = ref(false)
+const userStore = useUserStore()
 
 function onScroll() {
   visible.value = window.scrollY > 480
@@ -34,6 +36,14 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
     >
       <AppIcon name="cart" :size="19" />
       <span>购物车</span>
+    </RouterLink>
+    <RouterLink
+      class="floating-toolbar__item"
+      :to="userStore.isLoggedIn ? { name: 'account' } : { name: 'login' }"
+      :aria-label="userStore.isLoggedIn ? '账户中心' : '登录'"
+    >
+      <AppIcon name="user" :size="19" />
+      <span>{{ userStore.isLoggedIn ? '账户' : '登录' }}</span>
     </RouterLink>
     <button
       class="floating-toolbar__item floating-toolbar__item--top"
@@ -114,6 +124,12 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
   }
 
   .floating-toolbar__item span {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .floating-toolbar {
     display: none;
   }
 }

@@ -1,5 +1,22 @@
 <script setup>
-import { RouterView } from 'vue-router'
+import { watch } from 'vue'
+import { RouterView, useRoute, useRouter } from 'vue-router'
+import { useUserStore } from '@/stores/user'
+
+const route = useRoute()
+const router = useRouter()
+const userStore = useUserStore()
+
+watch(
+  () => userStore.unauthorizedMessage,
+  (message) => {
+    if (!message) return
+    userStore.clearUnauthorizedMessage()
+    if (route.meta?.requiresAuth) {
+      router.replace({ name: 'login', query: { redirect: route.fullPath, reason: 'expired' } })
+    }
+  },
+)
 </script>
 
 <template>
