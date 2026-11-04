@@ -5,7 +5,8 @@ import http from './request'
  *
  * 契约与后端一一对应（需求文档第十八章 + M4 计划）：
  *  - 分页用 POST + body（筛选条件多且大多可选）；
- *  - 发货是唯一写接口（`POST /admin/order/{orderNo}/ship`，仅 OPERATOR/ADMIN）。
+ *  - 写接口有两个：发货 `POST /admin/order/{orderNo}/ship` 与
+ *    代客确认收货 `POST /admin/order/{orderNo}/confirm`，均仅 OPERATOR/ADMIN。
  */
 
 /**
@@ -30,4 +31,15 @@ export function getOrderDetail(orderNo) {
  */
 export function shipOrder(orderNo, payload) {
   return http.post(`/admin/order/${encodeURIComponent(orderNo)}/ship`, payload)
+}
+
+/**
+ * 代客确认收货：已发货 → 已完成（UC-ORDER-06）。
+ *
+ * 用于买家失联或物流长期未更新的场景。重复调用是幂等的，
+ * 返回最新订单详情（含新增的状态时间线）。
+ * @param {string} orderNo
+ */
+export function confirmOrder(orderNo) {
+  return http.post(`/admin/order/${encodeURIComponent(orderNo)}/confirm`)
 }

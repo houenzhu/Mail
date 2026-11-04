@@ -30,6 +30,7 @@ public record AdminOrderRow(
         String trackingNo,
         LocalDateTime shippedAt,
         String shippedBy,
+        LocalDateTime completedAt,
         LocalDateTime createdAt,
         Integer itemCount,
         Integer totalQty) {

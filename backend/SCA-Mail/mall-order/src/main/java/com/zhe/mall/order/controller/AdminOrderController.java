@@ -96,4 +96,17 @@ public class AdminOrderController {
         orderService.ship(orderNo, request.shippingCompany(), request.trackingNo());
         return Result.success(adminOrderQueryService.detail(orderNo));
     }
+
+    /**
+     * 后台代客确认收货：已发货 → 已完成（UC-ORDER-06）。
+     *
+     * <p>买家失联或物流长期无更新时由运营代确认；与买家侧共用同一状态机与幂等口径。
+     * 客服只能看不代确认，因此限定 OPERATOR（ADMIN 按角色包含关系覆盖）。
+     */
+    @PostMapping("/{orderNo}/confirm")
+    @RequireStaff(UserRole.OPERATOR)
+    public Result<AdminOrderDetail> confirm(@PathVariable("orderNo") String orderNo) {
+        orderService.confirmByStaff(orderNo);
+        return Result.success(adminOrderQueryService.detail(orderNo));
+    }
 }

@@ -88,7 +88,7 @@
 | G-02 | 管理端商品列表 | 需要"全部商品（含下架/已删除）+ 销量 + 时间 + 库存"，现有 `GET /api/product/page` 是 C 端语义（`ProductDTO` 仅 7 个字段、无库存无时间） | **P0** |
 | G-03 | 商品编辑 / 逻辑删除 | 无 `PUT /api/admin/product/{id}`、`DELETE /api/admin/product/{id}` | **P0** |
 | G-04 | 管理端订单列表 | `GET /api/order/page` **强制按当前登录人过滤**（`@CurrentUserId`），运营看不到全量订单 | **P0** |
-| G-05 | 订单发货 / 确认收货 | 发货已落地：`POST /api/admin/order/{orderNo}/ship`（UC-ORDER-07，写入物流公司与单号，仅 OPERATOR/ADMIN）；`/confirm`（UC-ORDER-06）仍不存在 | **已完成（发货）** |
+| G-05 | 订单发货 / 确认收货 | 两者均已落地：发货 `POST /api/admin/order/{orderNo}/ship`（UC-ORDER-07）；确认收货 `POST /api/admin/order/{orderNo}/confirm`（UC-ORDER-06，买家本人 + 后台代客） | **已完成** |
 | G-06 | 库存分页列表 | 只有 `GET /api/inventory/{skuId}` 单条，管理端需要分页 + 按 SKU 名称搜索 | **P0** |
 | G-07 | 库存调整与流水查询（历史缺口） | 初始盘点时手工调整和流水查询未实现；现已落地，当前状态见第 14.5 节 | **已完成** |
 | G-08 | 分类 / 品牌管理 | 商品新增必须传 `categoryId` / `brandId`，但没有任何接口能列出或维护它们 → **发布商品表单无法填** | **P0** |
@@ -313,7 +313,7 @@ response => {
 | `/product/create` | 发布商品 | 商品→发布商品 | SPU 表单 + SKU 多行编辑 + 库存初始化；分类/品牌下拉 | ✅ 商品新增和目录接口已接通 | **已交付** |
 | `/product/edit/:id` | 编辑商品 | 商品→编辑 | 回显 + 修改 + SKU 增删改 | ✅ BFF 提供真实商品/SKU 回显和编辑 | **已交付** |
 | `/category/list` | 分类与品牌 | 商品→商品分类 | 分类 CRUD、品牌 CRUD | ✅ 已接 BFF 和下游写接口 | **已交付** |
-| `/order/list` | 订单管理 | 交易→订单管理 | 全量订单筛选、详情、发货 | ✅ 分页/详情/发货均已接通 | **已交付（M4 第二切片）** |
+| `/order/list` | 订单管理 | 交易→订单管理 | 全量订单筛选、详情、发货、代客确认收货 | ✅ 分页/详情/发货/确认收货均已接通 | **已交付（0.6.0 补齐确认收货）** |
 | `/order/detail/:orderNo` | 订单详情 | 订单详情 | 商品明细、收货信息、状态时间线 | ❌ 后台详情接口未实现 | 尚未注册/实现，为目标路由 |
 | `/refund/list` | 退款处理 | 客服→退款 | 退款单列表、状态筛选、详情 | ✅ 后台分页与详情已接通；审核/驳回属第四阶段 | **已交付（查询切片）** |
 | `/inventory/list` | 库存管理 | 商品→库存 | 商品级库存汇总、SKU 调整、低库存高亮 | ✅ 商品汇总与 SKU 调整均接真实接口 | 已接通 |
@@ -480,6 +480,16 @@ response => {
   - E2E 14 项通过：分页（total=18）、status=20（4 笔）/status=50（10 笔）与 SQL 抽查一致、订单号精确、日期区间、买家筛选、
     非法状态/时间报 10003、详情明细与时间线、订单不存在 34001、匿名 401、买家 403、直连下游 401；
   - UI 验收 `npm run verify:order` 全绿：列表渲染、详情抽屉、Tab 切换筛选、截图留档 `verify-out/20~22-*.png`。
+- **验收（确认收货，UC-ORDER-06，2026-11-04 已执行 / 0.6.0）**：
+  - 新增 `sql/12_order_completed.sql` 补 `orders.completed_at` + 索引（可重复执行）；
+  - 后端单测 96 项全绿（17 suite），含 `OrderConfirmServiceTest` 9 项，
+    覆盖买家本人/越权、未发货 34002、重复与并发幂等、后台代客与 CS 拒绝；
+  - 真实 E2E：造单 20 → 发货 30 → 买家确认 40，`completed_at` 落库；
+    重复确认 code=0 且状态仍 40（无第二条日志）；时间线 4 条（user/pay/admin/user）；
+    未发货确认 34002；匿名 401；买家调后台确认 403；后台代客确认幂等；
+  - UI 验收 `npm run verify:confirm` 13 项全绿（截图 `verify-out/60~63-*.png`）：
+    按钮出现 → 二次确认文案 → 状态变已完成 → 完成时间回显 → 终态按钮消失；
+  - 回归 login/order/refund/multitab/dashboard 全部通过。
 
 ### M5 工作台与看板（✅ 已完成，0.5.0）
 
@@ -688,7 +698,7 @@ Test-Path (Join-Path $env:TEMP 'pipatch\out\sun\nio\ch\PipeImpl.class')
 | 后台真实请求模式 | `front/vue-admin-web/.env.development` 为 `VITE_USE_MOCK=false`；Vite 代理指向网关 `127.0.0.1:10000` |
 | 商品管理 | 商品分页/角标/库存聚合、详情、创建、编辑、上下架、逻辑删除已存在；分类/品牌列表及 CRUD 已存在 |
 | 库存管理 | 商品级库存汇总；选择具体 SKU 可增量调整，库存服务检查已锁定/可售边界并写幂等流水、可信操作人 ID/名称；流水页支持 SKU ID 与类型筛选、分页、SKU/操作人信息补齐 |
-| 订单与退款 | 后台订单分页/详情/发货、退款分页/详情已接通（0.3.0）；退款审核/驳回落在下阶段 |
+| 订单与退款 | 后台订单分页/详情/发货/代客确认收货、退款分页/详情已接通（0.3.0 / 0.6.0）；退款审核/驳回落在下阶段 |
 | 工作台/看板 | `GET /api/admin/dashboard` 已交付（0.5.0）：订单概览与趋势、待处理退款、库存统计；图表用原生 SVG |
 | 待办跳转 | 看板待办携带 `?status=` 直达订单/退款对应 Tab（0.5.0 修复：此前列表页忽略 status 参数） |
 | 安全 | 商品写入由下游 `@RequireStaff(OPERATOR)` 校验；后台读取由 BFF/下游 staff 校验；库存调整由 BFF/下游限定 OPERATOR，网关白名单不覆盖管理路径 |

@@ -12,9 +12,9 @@
  */
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
-import { getOrderDetail, pageOrders, shipOrder } from '@/api/order'
+import { confirmOrder, getOrderDetail, pageOrders, shipOrder } from '@/api/order'
 import { ORDER_STATUS_TABS, PAY_TYPE_DICT, dictLabel } from '@/constants/dict'
 import { useTable } from '@/composables/useTable'
 import { usePermission } from '@/composables/usePermission'
@@ -30,6 +30,7 @@ const detailLoading = ref(false)
 const detail = ref(null)
 const shipVisible = ref(false)
 const shipLoading = ref(false)
+const confirmLoading = ref(false)
 const shipForm = reactive({ shippingCompany: '', trackingNo: '' })
 
 const filters = reactive({
@@ -140,6 +141,40 @@ async function openDetail(row) {
 /** 只有已支付（20）可以发货；已发货展示物流信息，其余状态不显示按钮。 */
 const canShip = computed(() =>
   hasRole('OPERATOR') && detail.value?.order?.status === 20)
+
+/** 只有已发货（30）可以代客确认收货；已完成不再显示，避免重复点击。 */
+const canConfirm = computed(() =>
+  hasRole('OPERATOR') && detail.value?.order?.status === 30)
+
+/**
+ * 代客确认收货：买家失联或物流长期未更新时使用。
+ *
+ * 先二次确认再提交——确认收货是终态动作（40 后不能再退款/发货），
+ * 误点无法在前端撤回，只能走售后。后端幂等，重复提交安全。
+ */
+async function submitConfirm() {
+  if (!canConfirm.value) return
+  try {
+    await ElMessageBox.confirm(
+      '确认收货后订单将变为「已完成」，不可再发货或退款，确定继续？',
+      '代客确认收货',
+      { type: 'warning', confirmButtonText: '确认收货', cancelButtonText: '取消' },
+    )
+  } catch {
+    return
+  }
+  confirmLoading.value = true
+  try {
+    const orderNo = detail.value.order.orderNo
+    detail.value = await confirmOrder(orderNo)
+    ElMessage.success('已确认收货')
+    load()
+  } catch {
+    // 错误提示由 request.js 统一处理
+  } finally {
+    confirmLoading.value = false
+  }
+}
 
 function openShip() {
   shipForm.shippingCompany = ''
@@ -367,10 +402,20 @@ function tagOf(status) {
             <el-descriptions-item v-if="detail.order.shippedBy" label="发货人">
               {{ detail.order.shippedBy }}
             </el-descriptions-item>
+            <el-descriptions-item v-if="detail.order.completedAt" label="完成时间" :span="2">
+              {{ formatDateTime(detail.order.completedAt) }}
+            </el-descriptions-item>
           </el-descriptions>
 
           <div v-if="canShip" class="ship-bar">
             <el-button type="primary" @click="openShip">发货</el-button>
+          </div>
+
+          <div v-if="canConfirm" class="ship-bar">
+            <el-button type="primary" :loading="confirmLoading" @click="submitConfirm">
+              确认收货
+            </el-button>
+            <span class="text-muted text-xs">买家失联或物流长期未更新时使用</span>
           </div>
 
           <h4 class="section-title">商品明细</h4>

@@ -402,6 +402,65 @@ public class OrderService {
     }
 
     /**
+     * 买家确认收货（UC-ORDER-06）：已发货 → 已完成。
+     *
+     * <p>只有订单本人可以确认；后台代客确认走 {@link #confirmByStaff(String)}，
+     * 两者共用 {@link #doConfirm}，避免两套状态流转逻辑漂移。
+     *
+     * <p>幂等：订单已经是「已完成」时直接返回，不重复写状态日志——
+     * 用户重复点击或网络重试都不应产生第二条时间线。
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public OrderDTO confirm(String orderNo, Long userId) {
+        Order order = requireOrder(orderNo);
+        requireOwnership(order, userId);
+        return doConfirm(order, OrderOperator.USER);
+    }
+
+    /**
+     * 后台代客确认收货：用于买家失联 / 系统自动收货等场景。
+     *
+     * <p>角色校验由控制器 {@code @RequireStaff(OPERATOR)} 完成，这里只做防御性检查；
+     * 操作人取网关注入的可信身份，不接收请求体里的操作人。
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public OrderDTO confirmByStaff(String orderNo) {
+        CurrentUser operator = UserContext.get();
+        if (operator == null || operator.userId() == null) {
+            throw new BusinessException(ResultCode.UNAUTHORIZED);
+        }
+        if (!operator.hasRole(UserRole.OPERATOR.name())) {
+            throw new BusinessException(ResultCode.FORBIDDEN, "无确认收货权限");
+        }
+        return doConfirm(requireOrder(orderNo), OrderOperator.ADMIN);
+    }
+
+    private OrderDTO doConfirm(Order order, OrderOperator operator) {
+        String orderNo = order.getOrderNo();
+        OrderStatus current = OrderStatus.of(order.getStatus());
+        if (current == OrderStatus.COMPLETED) {
+            log.info("确认收货幂等命中: orderNo={}", orderNo);
+            return toDTO(order);
+        }
+        OrderStateMachine.check(current, OrderStatus.COMPLETED);
+
+        LocalDateTime now = LocalDateTime.now();
+        int affected = orderMapper.markCompleted(orderNo, current.code(), OrderStatus.COMPLETED.code(), now);
+        if (affected == 0) {
+            Order latest = orderMapper.selectByOrderNo(orderNo);
+            if (latest != null && Objects.equals(latest.getStatus(), OrderStatus.COMPLETED.code())) {
+                log.info("确认收货并发幂等命中: orderNo={}", orderNo);
+                return toDTO(latest);
+            }
+            throw new BusinessException(ResultCode.ORDER_STATUS_ILLEGAL,
+                    "确认收货失败：订单状态已变更，请刷新后重试");
+        }
+        writeStatusLog(orderNo, current.code(), OrderStatus.COMPLETED, operator, "确认收货");
+        log.info("确认收货成功: orderNo={}, operator={}", orderNo, operator.code());
+        return toDTO(requireOrder(orderNo));
+    }
+
+    /**
      * 发布 {@code TOPIC_STOCK_ROLLBACK}（19.6），并把同步回滚降级为「尽力而为」。
      *
      * <p><b>为什么两者都保留</b>：
@@ -725,7 +784,7 @@ public class OrderService {
         return new OrderDTO(order.getOrderNo(), order.getUserId(), order.getStatus(),
                 OrderStatus.of(order.getStatus()).label(), order.getTotalAmount(), order.getDiscountAmount(),
                 order.getPayAmount(), order.getCouponId(), order.getPayType(), order.getCancelReason(),
-                order.getExpireAt(), order.getPaidAt(), order.getCreatedAt());
+                order.getExpireAt(), order.getPaidAt(), order.getCompletedAt(), order.getCreatedAt());
     }
 
     private OrderItemDTO toItemDTO(OrderItem item) {

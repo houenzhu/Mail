@@ -63,6 +63,17 @@ public class AdminOrderService {
         return unwrap(orderApi.adminShip(orderNo.trim(), request), "订单发货");
     }
 
+    /**
+     * 后台代客确认收货（UC-ORDER-06）。状态机与幂等都在 mall-order 内，
+     * 这里只做参数校验与错误码翻译。
+     */
+    public AdminOrderDetail confirm(String orderNo) {
+        if (orderNo == null || orderNo.isBlank()) {
+            throw new BusinessException(ResultCode.PARAM_MISSING, "orderNo 不能为空");
+        }
+        return unwrap(orderApi.adminConfirm(orderNo.trim()), "确认收货");
+    }
+
     /** 取 Result.data，业务失败转成异常（与 AdminProductService 同一口径）。 */
     private <T> T unwrap(Result<T> result, String action) {
         if (result == null || result.code() != ResultCode.SUCCESS.getCode()) {

@@ -71,6 +71,10 @@ public interface OrderApi {
     Result<AdminOrderDetail> adminShip(@PathVariable("orderNo") String orderNo,
                                        @RequestBody AdminShipRequest request);
 
+    /** 后台代客确认收货：已发货 → 已完成（UC-ORDER-06），重复确认幂等。 */
+    @PostMapping("/admin/{orderNo}/confirm")
+    Result<AdminOrderDetail> adminConfirm(@PathVariable("orderNo") String orderNo);
+
     /* ---------------- 后台看板（mall-admin 聚合时调用） ---------------- */
 
     /** 看板概览中的订单侧指标：今日 GMV / 今日订单数 / 待发货 / 退款中。 */

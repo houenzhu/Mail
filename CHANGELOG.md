@@ -6,6 +6,25 @@
 
 暂无。
 
+## [0.6.0] - 2026-11-04
+
+- UC-ORDER-06 确认收货（订单主流程闭环：待支付 → 已支付 → 已发货 → 已完成）。
+  - 新增 `sql/12_order_completed.sql`：为 `orders` 补 `completed_at` 与
+    `idx_orders_completed_at`，可重复执行。完成时间是售后期起算与结算对账的锚点，
+    不能靠 `updated_at` 推断（任何后续更新都会覆盖它）。
+  - 买家接口 `POST /api/order/{orderNo}/confirm`：已发货 → 已完成，仅订单本人可操作；
+    重复确认与并发 CAS 失败均按幂等返回，不产生第二条状态日志。
+  - 后台代客确认 `POST /api/admin/order/{orderNo}/confirm`（BFF）→
+    `mall-order /api/order/admin/{orderNo}/confirm`：用于买家失联或物流长期未更新；
+    限定 OPERATOR（ADMIN 覆盖），操作人取网关注入身份，日志 `operator = admin`。
+  - 状态与完成时间在同一条 CAS SQL 写入，避免「状态已 40 但完成时间没落库」。
+  - 订单 DTO 与后台 `AdminOrderRow` 增加 `completedAt`，详情页回显完成时间。
+  - 前端订单详情在「已发货」状态显示「确认收货」按钮，带二次确认（终态不可逆）；
+    完成后按钮消失，时间线新增一条记录。
+  - 新增 `OrderConfirmServiceTest`（9 项）与 Mapper XML 的 `markCompleted` / baseColumns 断言；
+    新增 `npm run verify:confirm`（真实造单 → 发货 → 代客确认，13 项全绿）。
+  - 后端全量单测 96 项全绿（17 suite）；回归 login/order/refund/multitab/dashboard 全部通过。
+
 ## [vue-mall 0.2.0] - 2026-11-04
 
 - 买家端阶段二：登录 / 注册 / 账户中心。

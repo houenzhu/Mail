@@ -190,7 +190,7 @@ public class AdminOrderQueryService {
                 order.getReceiverPhone(), order.getReceiverAddress(), order.getRemark(),
                 order.getExpireAt(), order.getPaidAt(), order.getCancelledAt(),
                 order.getCancelReason(), order.getShippingCompany(), order.getTrackingNo(),
-                order.getShippedAt(), order.getShippedBy(), order.getCreatedAt(),
+                order.getShippedAt(), order.getShippedBy(), order.getCompletedAt(), order.getCreatedAt(),
                 stat == null ? 0 : stat.itemCount(),
                 stat == null ? 0 : stat.totalQty());
     }

@@ -152,7 +152,10 @@ powershell -ExecutionPolicy Bypass -File .\scripts\init-db.ps1
 | admin | POST | `/api/admin/inventory/adjust` | 增量调库存并写幂等流水；仅运营/管理员 |
 | admin | POST | `/api/admin/inventory/record/page` | 按 SKU / 类型分页查询流水并补齐 SKU 信息，要求 staff |
 | order | POST | `/api/order/admin/{orderNo}/ship` | **后台发货**：已支付 → 已发货，同条 CAS 写入物流公司与单号；重复同单号幂等、改单号 `34002`；`@RequireStaff(OPERATOR)` |
+| order | POST | `/api/order/{orderNo}/confirm` | **买家确认收货**：已发货 → 已完成，写 `completed_at`；仅本人可操作，重复确认/并发幂等 |
+| order | POST | `/api/order/admin/{orderNo}/confirm` | **后台代客确认收货**：同上流转，用于买家失联/物流长期未更新；`@RequireStaff(OPERATOR)` |
 | admin | POST | `/api/admin/order/{orderNo}/ship` | 后台发货 BFF（转发 + 错误码翻译，不做降级） |
+| admin | POST | `/api/admin/order/{orderNo}/confirm` | 代客确认收货 BFF（仅 OPERATOR/ADMIN，不做降级） |
 | pay | POST | `/api/pay/admin/refund/page` | **后台退款单分页**：退款单号 / 订单号 / 买家 / 状态 / 时间区间；类级 `@RequireStaff` |
 | pay | GET | `/api/pay/admin/refund/{refundNo}` | 后台退款单详情（含发起方、操作人、渠道退款单号） |
 | admin | POST/GET | `/api/admin/refund/page`、`/api/admin/refund/{refundNo}` | 后台退款查询 BFF（只读，不降级） |

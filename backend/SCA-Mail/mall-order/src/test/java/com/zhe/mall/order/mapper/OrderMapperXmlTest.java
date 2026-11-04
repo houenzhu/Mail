@@ -118,6 +118,35 @@ class OrderMapperXmlTest {
         assertThat(sql).isEqualTo("select status, count(1) as total from orders where deleted = 0 group by status");
     }
 
+    @Test
+    @DisplayName("确认收货 SQL：状态与完成时间同一条 CAS，且期望状态参与 where")
+    void markCompletedWritesStatusAndTimeInOneCas() throws Exception {
+        Configuration configuration = parse(ORDER_MAPPER);
+        Map<String, Object> params = new HashMap<>();
+        params.put("orderNo", "A001");
+        params.put("expectStatus", 30);
+        params.put("status", 40);
+        params.put("completedAt", java.time.LocalDateTime.of(2026, 11, 4, 10, 0));
+
+        MappedStatement statement = configuration.getMappedStatement(
+                "com.zhe.mall.order.mapper.OrderMapper.markCompleted");
+        String n = normalize(statement.getBoundSql(params).getSql());
+
+        assertThat(n).contains("set status = ?", "completed_at = ?");
+        assertThat(n).contains("where order_no = ? and deleted = 0 and status = ?");
+        assertThat(statement.getBoundSql(params).getParameterMappings()).hasSize(4);
+    }
+
+    @Test
+    @DisplayName("baseColumns 包含 completed_at，避免实体字段永远读不到")
+    void baseColumnsIncludeCompletedAt() throws Exception {
+        Configuration configuration = parse(ORDER_MAPPER);
+        String sql = normalize(configuration.getMappedStatement(
+                "com.zhe.mall.order.mapper.OrderMapper.selectByOrderNo").getBoundSql(Map.of()).getSql());
+
+        assertThat(sql).contains("completed_at");
+    }
+
     private Configuration parse(String path) throws Exception {
         Configuration configuration = new Configuration();
         try (InputStream in = Files.newInputStream(Path.of(path))) {

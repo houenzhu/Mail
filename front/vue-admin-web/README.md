@@ -35,7 +35,7 @@ Vite 默认监听 5174，开发代理把 `/api` 转发到 `http://127.0.0.1:1000
 | 分类与品牌 | `/category/list` | 已接真实列表及增删改 |
 | 库存管理 | `/inventory/list` | 商品级库存汇总；选择 SKU 后可按增量调整并写流水 |
 | 库存流水 | `/inventory/record` | 真实分页，支持 SKU ID / 流水类型筛选，并显示可信操作人 |
-| 订单管理 | /order/list | 已接真实分页与详情，并在详情抽屉内提供发货（已支付订单、仅 OPERATOR/ADMIN）：填写物流公司与单号，重复提交同单号幂等 |
+| 订单管理 | /order/list | 已接真实分页与详情；详情抽屉提供发货（已支付，仅 OPERATOR/ADMIN，重复同单号幂等）与代客确认收货（已发货，二次确认后 30 → 40，终态不再显示按钮） |
 | 退款处理 | /refund/list | 已接真实分页与详情：状态 Tab、退款单号/订单号/买家/日期筛选、详情含发起方与渠道退款单号；不提供审核/驳回（第四阶段） |
 | 数据看板 | /dashboard | 已接真实聚合接口：4 张指标卡、GMV 与订单量 SVG 趋势（7/30 天切换）、库存售罄率、待办跳转 |
 
@@ -66,6 +66,7 @@ npm run verify:multitab     # 多标签页令牌同步：并发 401 只刷新一
 npm run verify:order        # 订单管理页：分页、详情抽屉、状态 Tab（M4 查询）
 npm run verify:refund       # 退款列表/详情 + 订单发货弹窗（M4 第二切片）
 npm run verify:dashboard    # 数据看板：指标卡、趋势图、库存售罄率、待办跳转（M5）
+npm run verify:confirm      # 代客确认收货：真实造单 → 发货 → 二次确认 → 已完成（UC-ORDER-06）
 ```
 
 `verify:refund` 的发货用例需要一笔「已支付」订单；本地可用

@@ -53,6 +53,17 @@ public interface OrderMapper {
                     @Param("shippedAt") LocalDateTime shippedAt,
                     @Param("shippedBy") String shippedBy);
 
+    /**
+     * 确认收货：30 → 40，同一 CAS 内写入完成时间。
+     *
+     * <p>完成时间是售后期与结算对账的锚点（发货后 7 天自动收货、售后期从完成时间起算），
+     * 单独放在状态更新里而不是再发一条 UPDATE，避免"状态已 40 但完成时间没落库"。
+     */
+    int markCompleted(@Param("orderNo") String orderNo,
+                      @Param("expectStatus") Integer expectStatus,
+                      @Param("status") Integer status,
+                      @Param("completedAt") LocalDateTime completedAt);
+
     List<Order> selectTimeoutCandidates(@Param("limit") int limit);
     /* ---------------- 后台订单查询 ---------------- */
 

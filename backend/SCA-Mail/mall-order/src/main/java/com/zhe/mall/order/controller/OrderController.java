@@ -68,4 +68,16 @@ public class OrderController {
         String reason = request == null ? null : request.reason();
         return Result.success(orderService.cancel(orderNo, reason, userId));
     }
+
+    /**
+     * 确认收货（UC-ORDER-06）：已发货 → 已完成。
+     *
+     * <p>只有订单本人可确认；重复确认是幂等的，直接返回当前订单。
+     * 后台代客确认在 {@link AdminOrderController#confirm}。
+     */
+    @PostMapping("/{orderNo}/confirm")
+    public Result<OrderDTO> confirm(@PathVariable("orderNo") String orderNo,
+                                    @CurrentUserId Long userId) {
+        return Result.success(orderService.confirm(orderNo, userId));
+    }
 }

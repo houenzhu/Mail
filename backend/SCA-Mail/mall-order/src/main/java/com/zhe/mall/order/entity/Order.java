@@ -50,6 +50,8 @@ public class Order {
 
     private String shippedBy;
 
+    private LocalDateTime completedAt;
+
     private Integer deleted;
 
     private LocalDateTime createdAt;

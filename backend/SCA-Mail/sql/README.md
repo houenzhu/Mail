@@ -15,6 +15,7 @@
 | `09_mall_mq.sql` | `mall_order` / `mall_pay` / `mall_inventory` | `local_message`（本地消息表 Outbox，落在生产方库 order / pay）、`consumed_message`（消费幂等表，落在消费方库 inventory / order / pay），见需求文档 19.6 / 20.3 |
 | `10_inventory_operator_audit.sql` | `mall_inventory` | 为库存流水增加可信操作人 ID/用户名字段（兼容 MySQL 8.0.32，可重复执行） |
 | `11_order_shipping.sql` | `mall_order` | 为订单增加物流公司、物流单号、发货时间与发货人字段（UC-ORDER-07，可重复执行） |
+| `12_order_completed.sql` | `mall_order` | 为订单增加完成时间与索引（UC-ORDER-06 确认收货，可重复执行） |
 
 ## 执行方式
 

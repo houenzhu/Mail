@@ -62,4 +62,11 @@ public class AdminOrderController {
                                          @Valid @RequestBody AdminShipRequest request) {
         return Result.success(adminOrderService.ship(orderNo, request));
     }
+
+    /** 代客确认收货：已发货 → 已完成（UC-ORDER-06），仅 OPERATOR/ADMIN。 */
+    @PostMapping("/{orderNo}/confirm")
+    @RequireStaff(UserRole.OPERATOR)
+    public Result<AdminOrderDetail> confirm(@PathVariable("orderNo") String orderNo) {
+        return Result.success(adminOrderService.confirm(orderNo));
+    }
 }
