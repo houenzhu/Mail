@@ -8,7 +8,11 @@ public enum InventoryRecordType {
 
     PRE_DEDUCT(3, "预扣"),
 
-    PRE_ROLLBACK(4, "预扣回滚");
+    PRE_ROLLBACK(4, "预扣回滚"),
+
+    ADJUST_IN(5, "调增"),
+
+    ADJUST_OUT(6, "调减");
 
     private final int code;
 

@@ -2,10 +2,12 @@ package com.zhe.mall.admin.service;
 
 import com.zhe.mall.admin.dto.AdminProductPage;
 import com.zhe.mall.admin.dto.AdminProductRow;
+import com.zhe.mall.admin.dto.AdminInventoryRecordPage;
 import com.zhe.mall.api.InventoryApi;
 import com.zhe.mall.api.ProductApi;
 import com.zhe.mall.api.dto.AdminProductPageQuery;
 import com.zhe.mall.api.dto.AdminProductStatusCounts;
+import com.zhe.mall.api.dto.AdjustStockRequest;
 import com.zhe.mall.api.dto.BrandDTO;
 import com.zhe.mall.api.dto.BrandSaveRequest;
 import com.zhe.mall.api.dto.CategoryDTO;
@@ -14,6 +16,9 @@ import com.zhe.mall.api.dto.DeductRequest;
 import com.zhe.mall.api.dto.DeductResult;
 import com.zhe.mall.api.dto.InventoryBatchRequest;
 import com.zhe.mall.api.dto.InventoryDTO;
+import com.zhe.mall.api.dto.InventoryRecordPage;
+import com.zhe.mall.api.dto.InventoryRecordPageQuery;
+import com.zhe.mall.api.dto.InventoryRecordDTO;
 import com.zhe.mall.api.dto.InitStockRequest;
 import com.zhe.mall.api.dto.ProductDTO;
 import com.zhe.mall.api.dto.ProductSaveRequest;
@@ -145,6 +150,26 @@ class AdminProductServiceTest {
         assertThat(inventoryApi.batchCalls).isZero();
     }
 
+    @Test
+    @DisplayName("库存流水按页批量补齐 SKU 和可信操作人信息")
+    void inventoryRecordPageEnrichesSkuInBatch() {
+        StubProductApi productApi = new StubProductApi();
+        StubInventoryApi inventoryApi = new StubInventoryApi();
+        inventoryApi.recordPage = new InventoryRecordPage(1, 1, 10, List.of(
+                new InventoryRecordDTO(10L, 1001L, "req-1", 5, 3, 1, "补货", 9001L, "operator01", null)));
+        AdminProductService service = new AdminProductService(productApi, inventoryApi);
+
+        AdminInventoryRecordPage page = service.inventoryRecords(new InventoryRecordPageQuery(null, 5, 1, 10));
+
+        assertThat(page.records()).singleElement().satisfies(row -> {
+            assertThat(row.skuCode()).isEqualTo("SKU-1001");
+            assertThat(row.skuName()).isEqualTo("默认规格");
+            assertThat(row.operatorId()).isEqualTo(9001L);
+            assertThat(row.operatorName()).isEqualTo("operator01");
+        });
+        assertThat(productApi.lastSkuIds).containsExactly(1001L);
+    }
+
     /* ---------------- 手写桩 ---------------- */
 
     private static ProductDTO product(long id, String name, Long categoryId, Long brandId, int sales) {
@@ -160,6 +185,7 @@ class AdminProductServiceTest {
         int skuBatchCalls;
         boolean failPage;
         boolean emptyPage;
+        List<Long> lastSkuIds = new ArrayList<>();
 
         @Override
         public Result<PageResult<ProductDTO>> adminPage(AdminProductPageQuery query) {
@@ -228,7 +254,9 @@ class AdminProductServiceTest {
 
         @Override
         public Result<List<SkuDTO>> skuByIds(List<Long> skuIds) {
-            throw new UnsupportedOperationException();
+            lastSkuIds = List.copyOf(skuIds);
+            return Result.success(List.of(new SkuDTO(1001L, 1L, "SKU-1001", "默认规格",
+                    null, new BigDecimal("499.00"), new BigDecimal("519.00"), null, 1)));
         }
 
         @Override
@@ -277,6 +305,7 @@ class AdminProductServiceTest {
         int batchCalls;
         List<Long> lastSkuIds = new ArrayList<>();
         boolean failBatch;
+        InventoryRecordPage recordPage = new InventoryRecordPage(0, 1, 10, List.of());
 
         @Override
         public Result<Map<Long, InventoryDTO>> getBatch(InventoryBatchRequest request) {
@@ -310,6 +339,16 @@ class AdminProductServiceTest {
         @Override
         public Result<Void> init(InitStockRequest request) {
             throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Result<DeductResult> adjust(AdjustStockRequest request) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Result<InventoryRecordPage> recordPage(InventoryRecordPageQuery query) {
+            return Result.success(recordPage);
         }
     }
 }

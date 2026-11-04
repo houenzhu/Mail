@@ -2,9 +2,12 @@ package com.zhe.mall.api;
 
 import com.zhe.mall.api.dto.DeductRequest;
 import com.zhe.mall.api.dto.DeductResult;
+import com.zhe.mall.api.dto.AdjustStockRequest;
 import com.zhe.mall.api.dto.InventoryBatchRequest;
 import com.zhe.mall.api.dto.InventoryDTO;
 import com.zhe.mall.api.dto.InitStockRequest;
+import com.zhe.mall.api.dto.InventoryRecordPage;
+import com.zhe.mall.api.dto.InventoryRecordPageQuery;
 import com.zhe.mall.common.result.Result;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -32,6 +35,12 @@ public interface InventoryApi {
 
     @PostMapping("/rollback")
     Result<DeductResult> rollback(@RequestBody DeductRequest request);
+
+    @PostMapping("/adjust")
+    Result<DeductResult> adjust(@RequestBody AdjustStockRequest request);
+
+    @PostMapping("/record/page")
+    Result<InventoryRecordPage> recordPage(@RequestBody InventoryRecordPageQuery query);
 
     @PostMapping("/init")
     Result<Void> init(@RequestBody InitStockRequest request);

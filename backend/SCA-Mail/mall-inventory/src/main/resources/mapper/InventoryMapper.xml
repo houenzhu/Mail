@@ -29,6 +29,16 @@
         where sku_id = #{skuId} and available + #{qty} &lt;= total
     </update>
 
+    <update id="adjust">
+        update inventory
+        set total = total + #{delta}, available = available + #{delta}, version = version + 1
+        where sku_id = #{skuId}
+          and total + #{delta} &gt;= locked
+          and available + #{delta} &gt;= 0
+          and total + #{delta} &lt;= 2147483647
+          and available + #{delta} &lt;= 2147483647
+    </update>
+
     <insert id="init">
         insert into inventory (sku_id, total, locked, available, warn_threshold, version)
         values (#{skuId}, #{qty}, 0, #{qty}, #{warnThreshold}, 0)

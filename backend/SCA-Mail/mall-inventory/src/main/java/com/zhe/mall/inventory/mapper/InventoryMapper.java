@@ -22,5 +22,7 @@ public interface InventoryMapper {
 
     int rollback(@Param("skuId") Long skuId, @Param("qty") Integer qty);
 
+    int adjust(@Param("skuId") Long skuId, @Param("delta") Integer delta);
+
     int init(@Param("skuId") Long skuId, @Param("qty") Integer qty, @Param("warnThreshold") Integer warnThreshold);
 }

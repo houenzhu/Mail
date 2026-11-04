@@ -66,6 +66,8 @@ public enum ResultCode {
 
     ROLLBACK_FAILED(33004, "库存回滚失败"),
 
+    STOCK_ADJUST_INVALID(33005, "库存调整后数值非法"),
+
     ORDER_NOT_FOUND(34001, "订单不存在"),
 
     ORDER_STATUS_ILLEGAL(34002, "订单状态不允许该操作"),

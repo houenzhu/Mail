@@ -2,8 +2,14 @@ package com.zhe.mall.inventory.service;
 
 import com.zhe.mall.api.dto.DeductRequest;
 import com.zhe.mall.api.dto.DeductResult;
+import com.zhe.mall.api.dto.AdjustStockRequest;
 import com.zhe.mall.api.dto.InitStockRequest;
 import com.zhe.mall.api.dto.InventoryDTO;
+import com.zhe.mall.api.dto.InventoryRecordDTO;
+import com.zhe.mall.api.dto.InventoryRecordPage;
+import com.zhe.mall.api.dto.InventoryRecordPageQuery;
+import com.zhe.mall.common.auth.CurrentUser;
+import com.zhe.mall.common.auth.UserContext;
 import com.zhe.mall.common.exception.BusinessException;
 import com.zhe.mall.common.result.ResultCode;
 import com.zhe.mall.common.util.SnowflakeIdGenerator;
@@ -131,6 +137,117 @@ public class InventoryService {
         int warnThreshold = Math.max(MIN_WARN_THRESHOLD, request.qty() / 10);
         inventoryMapper.init(request.skuId(), request.qty(), warnThreshold);
         log.info("库存初始化: skuId={}, qty={}", request.skuId(), request.qty());
+    }
+
+    /**
+     * 管理端手工调整库存。请求 ID 作为流水幂等键，调整方向进入 type，
+     * 这样同一个请求重放不会重复改库存。
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public DeductResult adjust(AdjustStockRequest request) {
+        if (request == null || request.requestId() == null || request.requestId().isBlank()) {
+            throw new BusinessException(ResultCode.PARAM_MISSING, "requestId 不能为空");
+        }
+        if (request.requestId().length() > 32) {
+            throw new BusinessException(ResultCode.PARAM_INVALID, "requestId 长度不能超过 32");
+        }
+        if (request.skuId() == null) {
+            throw new BusinessException(ResultCode.PARAM_MISSING, "skuId 不能为空");
+        }
+        if (request.skuId() <= 0) {
+            throw new BusinessException(ResultCode.PARAM_INVALID, "skuId 必须大于 0");
+        }
+        if (request.delta() == null || request.delta() == 0) {
+            throw new BusinessException(ResultCode.PARAM_INVALID, "库存调整数量不能为 0");
+        }
+        if (request.delta() == Integer.MIN_VALUE) {
+            throw new BusinessException(ResultCode.PARAM_INVALID, "库存调整数量超出范围");
+        }
+        if (request.remark() != null && request.remark().length() > 255) {
+            throw new BusinessException(ResultCode.PARAM_INVALID, "备注长度不能超过 255");
+        }
+
+        InventoryRecordType type = request.delta() > 0
+                ? InventoryRecordType.ADJUST_IN : InventoryRecordType.ADJUST_OUT;
+        InventoryRecord claim = new InventoryRecord();
+        claim.setId(SnowflakeIdGenerator.nextId());
+        claim.setSkuId(request.skuId());
+        claim.setOrderNo(request.requestId());
+        claim.setType(type.code());
+        claim.setQty(Math.abs(request.delta()));
+        claim.setStatus(InventoryRecordStatus.PROCESSING.code());
+        claim.setRemark(request.remark());
+        CurrentUser operator = UserContext.get();
+        if (operator == null || operator.userId() == null) {
+            throw new BusinessException(ResultCode.UNAUTHORIZED);
+        }
+        if (!operator.hasRole("OPERATOR")) {
+            throw new BusinessException(ResultCode.FORBIDDEN);
+        }
+        claim.setOperatorId(operator.userId());
+        claim.setOperatorName(operator.username());
+        if (!tryClaim(claim)) {
+            return replayAdjust(request, type);
+        }
+
+        int affected = inventoryMapper.adjust(request.skuId(), request.delta());
+        if (affected == 0) {
+            Inventory current = inventoryMapper.selectById(request.skuId());
+            ResultCode code = current == null ? ResultCode.INVENTORY_NOT_FOUND : ResultCode.STOCK_ADJUST_INVALID;
+            String message = current == null
+                    ? "库存记录不存在: " + request.skuId()
+                    : "调整后库存不能低于已锁定库存或小于 0";
+            inventoryRecordMapper.updateStatus(claim.getId(), InventoryRecordStatus.FAILED.code(), message);
+            return DeductResult.fail(code, message);
+        }
+
+        inventoryRecordMapper.updateStatus(claim.getId(), InventoryRecordStatus.SUCCESS.code(), request.remark());
+        Inventory after = inventoryMapper.selectById(request.skuId());
+        return DeductResult.ok(after == null ? null : after.getAvailable());
+    }
+
+    public InventoryRecordPage recordPage(InventoryRecordPageQuery query) {
+        InventoryRecordPageQuery safe = query == null
+                ? new InventoryRecordPageQuery(null, null, 1, 10) : query;
+        if (safe.skuId() != null && safe.skuId() <= 0) {
+            throw new BusinessException(ResultCode.PARAM_INVALID, "skuId 必须大于 0");
+        }
+        if (safe.type() != null && (safe.type() < 1 || safe.type() > 6)) {
+            throw new BusinessException(ResultCode.PARAM_INVALID, "库存流水类型必须在 1 到 6 之间");
+        }
+        int pageNo = safe.safePageNo();
+        int pageSize = safe.safePageSize();
+        List<InventoryRecord> records = inventoryRecordMapper.selectPage(
+                safe.skuId(), safe.type(), safe.offset(), pageSize);
+        List<InventoryRecordDTO> result = records.stream()
+                .map(record -> new InventoryRecordDTO(record.getId(), record.getSkuId(), record.getOrderNo(),
+                        record.getType(), record.getQty(), record.getStatus(), record.getRemark(),
+                        record.getOperatorId(), record.getOperatorName(), record.getCreatedAt()))
+                .toList();
+        return new InventoryRecordPage(inventoryRecordMapper.countPage(safe.skuId(), safe.type()),
+                pageNo, pageSize, result);
+    }
+
+    private DeductResult replayAdjust(AdjustStockRequest request, InventoryRecordType type) {
+        InventoryRecord existing = inventoryRecordMapper.selectByUniqueKey(
+                request.requestId(), request.skuId(), type.code());
+        if (existing == null) {
+            throw new BusinessException(ResultCode.DUPLICATE_REQUEST);
+        }
+        CurrentUser operator = UserContext.get();
+        if (!Objects.equals(existing.getQty(), Math.abs(request.delta()))
+                || !Objects.equals(existing.getOperatorId(), operator == null ? null : operator.userId())) {
+            throw new BusinessException(ResultCode.DUPLICATE_REQUEST, "requestId 已用于不同的库存调整内容");
+        }
+        if (Objects.equals(existing.getStatus(), InventoryRecordStatus.SUCCESS.code())) {
+            Inventory current = inventoryMapper.selectById(request.skuId());
+            return DeductResult.ok(current == null ? null : current.getAvailable());
+        }
+        if (Objects.equals(existing.getStatus(), InventoryRecordStatus.PROCESSING.code())) {
+            throw new BusinessException(ResultCode.DUPLICATE_REQUEST, "上一次调整正在处理中，请勿重复提交");
+        }
+        return DeductResult.fail(ResultCode.STOCK_ADJUST_INVALID,
+                existing.getRemark() == null ? "上一次库存调整失败" : existing.getRemark());
     }
 
     private boolean tryClaim(InventoryRecord claim) {

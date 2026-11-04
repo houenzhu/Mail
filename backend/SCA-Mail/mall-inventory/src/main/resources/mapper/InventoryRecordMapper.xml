@@ -3,12 +3,12 @@
 <mapper namespace="com.zhe.mall.inventory.mapper.InventoryRecordMapper">
 
     <insert id="insert">
-        insert into inventory_record (id, sku_id, order_no, type, qty, status, remark)
-        values (#{id}, #{skuId}, #{orderNo}, #{type}, #{qty}, #{status}, #{remark})
+        insert into inventory_record (id, sku_id, order_no, type, qty, status, remark, operator_id, operator_name)
+        values (#{id}, #{skuId}, #{orderNo}, #{type}, #{qty}, #{status}, #{remark}, #{operatorId}, #{operatorName})
     </insert>
 
     <select id="selectByUniqueKey" resultType="com.zhe.mall.inventory.entity.InventoryRecord">
-        select id, sku_id, order_no, type, qty, status, remark, created_at
+        select id, sku_id, order_no, type, qty, status, remark, operator_id, operator_name, created_at
         from inventory_record
         where order_no = #{orderNo} and sku_id = #{skuId} and type = #{type}
     </select>
@@ -16,4 +16,24 @@
     <update id="updateStatus">
         update inventory_record set status = #{status}, remark = #{remark} where id = #{id}
     </update>
+
+    <select id="selectPage" resultType="com.zhe.mall.inventory.entity.InventoryRecord">
+        select id, sku_id, order_no, type, qty, status, remark, operator_id, operator_name, created_at
+        from inventory_record
+        <where>
+            <if test="skuId != null">and sku_id = #{skuId}</if>
+            <if test="type != null">and type = #{type}</if>
+        </where>
+        order by created_at desc, id desc
+        limit #{offset}, #{limit}
+    </select>
+
+    <select id="countPage" resultType="long">
+        select count(*)
+        from inventory_record
+        <where>
+            <if test="skuId != null">and sku_id = #{skuId}</if>
+            <if test="type != null">and type = #{type}</if>
+        </where>
+    </select>
 </mapper>

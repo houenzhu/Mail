@@ -3,16 +3,23 @@ package com.zhe.mall.admin.service;
 import com.zhe.mall.admin.dto.AdminProductDetail;
 import com.zhe.mall.admin.dto.AdminProductPage;
 import com.zhe.mall.admin.dto.AdminProductRow;
+import com.zhe.mall.admin.dto.AdminInventoryRecordPage;
+import com.zhe.mall.admin.dto.AdminInventoryRecordRow;
 import com.zhe.mall.api.InventoryApi;
 import com.zhe.mall.api.ProductApi;
 import com.zhe.mall.api.dto.AdminProductPageQuery;
 import com.zhe.mall.api.dto.AdminProductStatusCounts;
+import com.zhe.mall.api.dto.AdjustStockRequest;
 import com.zhe.mall.api.dto.BrandDTO;
 import com.zhe.mall.api.dto.BrandSaveRequest;
 import com.zhe.mall.api.dto.CategoryDTO;
 import com.zhe.mall.api.dto.CategorySaveRequest;
 import com.zhe.mall.api.dto.InventoryBatchRequest;
 import com.zhe.mall.api.dto.InventoryDTO;
+import com.zhe.mall.api.dto.InventoryRecordDTO;
+import com.zhe.mall.api.dto.InventoryRecordPage;
+import com.zhe.mall.api.dto.InventoryRecordPageQuery;
+import com.zhe.mall.api.dto.DeductResult;
 import com.zhe.mall.api.dto.ProductDTO;
 import com.zhe.mall.api.dto.ProductSaveRequest;
 import com.zhe.mall.api.dto.SkuDTO;
@@ -201,6 +208,50 @@ public class AdminProductService {
 
     public void deleteBrand(Long brandId) {
         unwrap(productApi.deleteBrand(brandId), "删除品牌");
+    }
+
+    /** 查询单个 SKU 的库存，供管理端调整弹窗回显。 */
+    public InventoryDTO inventory(Long skuId) {
+        return unwrap(inventoryApi.getBySkuId(skuId), "查询库存");
+    }
+
+    /** 管理端调库存：下游服务负责幂等与库存边界校验。 */
+    public DeductResult adjustInventory(AdjustStockRequest request) {
+        DeductResult result = unwrap(inventoryApi.adjust(request), "调整库存");
+        if (result == null || !result.success()) {
+            throw new BusinessException(result == null ? ResultCode.DOWNSTREAM_UNAVAILABLE.getCode() : result.code(),
+                    result == null ? "调整库存无响应" : result.message());
+        }
+        return result;
+    }
+
+    /**
+     * 管理端库存流水分页。流水在库存库，SKU 主数据在商品库，BFF 批量补名称以避免 N+1。
+     */
+    public AdminInventoryRecordPage inventoryRecords(InventoryRecordPageQuery query) {
+        InventoryRecordPage page = unwrap(inventoryApi.recordPage(query), "查询库存流水");
+        List<InventoryRecordDTO> records = page == null || page.records() == null ? List.of() : page.records();
+        Map<Long, SkuDTO> resolvedSkuMap = Map.of();
+        List<Long> skuIds = records.stream().map(InventoryRecordDTO::skuId)
+                .filter(Objects::nonNull).distinct().toList();
+        if (!skuIds.isEmpty()) {
+            try {
+                List<SkuDTO> skus = unwrap(productApi.skuByIds(skuIds), "补齐流水 SKU");
+                resolvedSkuMap = skus == null ? Map.of() : skus.stream()
+                        .collect(Collectors.toMap(SkuDTO::id, item -> item, (a, b) -> a));
+            } catch (RuntimeException e) {
+                log.warn("补齐库存流水 SKU 失败，继续返回流水: {}", e.getMessage());
+            }
+        }
+        Map<Long, SkuDTO> skuMap = resolvedSkuMap;
+        List<AdminInventoryRecordRow> rows = records.stream().map(record -> {
+            SkuDTO sku = skuMap.get(record.skuId());
+            return new AdminInventoryRecordRow(record.id(), record.skuId(),
+                    sku == null ? null : sku.skuCode(), sku == null ? null : sku.name(),
+                    record.orderNo(), record.type(), record.qty(), record.status(),
+                    record.remark(), record.operatorId(), record.operatorName(), record.createdAt());
+        }).toList();
+        return new AdminInventoryRecordPage(page.total(), page.pageNo(), page.pageSize(), rows);
     }
 
     private Map<Long, String> categoryNameMap() {

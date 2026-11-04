@@ -21,5 +21,9 @@ public class InventoryRecord {
 
     private String remark;
 
+    private Long operatorId;
+
+    private String operatorName;
+
     private LocalDateTime createdAt;
 }

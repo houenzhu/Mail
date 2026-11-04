@@ -39,7 +39,7 @@
 
 ## 当前实现边界
 
-- 管理后台已接通登录、商品管理与分类/品牌维护；库存页展示商品库存汇总，但库存调整和流水未实现。后台订单/退款管理与数据看板也未实现，见 [后台前端说明](../../front/vue-admin-web/README.md)。
+- 管理后台已接通登录、商品管理、分类/品牌维护，以及库存调整与流水查询；库存调整和流水查询只允许后台人员，调整只允许运营/管理员。后台订单/退款管理与数据看板也未实现，见 [后台前端说明](../../front/vue-admin-web/README.md)。
 - 买家端 `front/vue-mall` 仍为初始脚手架，尚无商城业务流程。
 - 当前没有客服会话、工单、知识库或 LangChain Agent 服务。第 30 章记录了作为后续项目的范围、数据准备和接口安全要求；它是规划，不是已交付功能。
 - **权限已补齐（2026-10-28）**：`/api/admin/**` 的商品与目录读取在 BFF 控制器要求 staff，下游管理读取接口再次要求 staff；网关公开商品 GET 白名单已收敛为明确的 C 端路径，不再覆盖 `/api/product/admin/**`。内部身份仍由 `X-Gateway-Token` 证明，直连服务或伪造身份头按匿名处理。
@@ -87,7 +87,7 @@
 
 ## 数据库
 
-按服务分库（database-per-service）：`mall_product` / `mall_inventory` / `mall_order` / `mall_user` / `mall_auth`/ `mall_pay`（`payment` / `payment_callback_log` / `refund` / `pay_reconcile_diff`，见需求文档 28.3），跨服务数据一律走接口，不做跨库 JOIN。**认证凭证（`mall_auth`）与用户档案（`mall_user`）分离**，以 `user_id` 对应，理由见需求文档 ADR-009。
+按服务分库（database-per-service）：`mall_product` / `mall_inventory` / `mall_order` / `mall_user` / `mall_auth`/ `mall_pay`（`payment` / `payment_callback_log` / `refund` / `pay_reconcile_diff`，见需求文档 28.3），跨服务数据一律走接口，不做跨库 JOIN。**认证凭证（`mall_auth`）与用户档案（`mall_user`）分离**，以 `user_id` 对应，理由见需求文档 ADR-009。库存流水操作人字段由 `sql/10_inventory_operator_audit.sql` 加入现有 `mall_inventory`，`scripts/init-db.ps1` 会按文件顺序幂等执行。
 
 消息表（`sql/09_mall_mq.sql`，见需求文档 29 章）：`local_message`（本地消息表 / Outbox，**落在生产方库** `mall_order` / `mall_pay`）与 `consumed_message`（消费幂等表，落在消费方库 `mall_inventory` / `mall_order` / `mall_pay`）。**刻意不建独立的 `mall_mq` 库**——Outbox 必须与业务写同库同事务，否则"业务已提交、消息未落库"的窗口会让 RPO=0 失效。
 
@@ -148,10 +148,13 @@ powershell -ExecutionPolicy Bypass -File .\scripts\init-db.ps1
 | admin | DELETE | `/api/admin/product/{id}` | 逻辑删除（下游 `@RequireStaff(OPERATOR)`） |
 | admin | GET | `/api/admin/category/list`、`/api/admin/brand/list` | 分类/品牌字典列表 |
 | admin | POST/PUT/DELETE | `/api/admin/category[/{id}]`、`/api/admin/brand[/{id}]` | 分类/品牌维护（写入由下游 `@RequireStaff(OPERATOR)` 校验） |
+| admin | GET | `/api/admin/inventory/sku/{skuId}` | 单 SKU 库存回显，要求 staff |
+| admin | POST | `/api/admin/inventory/adjust` | 增量调库存并写幂等流水；仅运营/管理员 |
+| admin | POST | `/api/admin/inventory/record/page` | 按 SKU / 类型分页查询流水并补齐 SKU 信息，要求 staff |
 | product | GET | `/api/product/category/list`、`/api/product/brand/list` | 商品分类/品牌字典；当前作为 GET 商品路径也在网关匿名白名单内 |
 | internal-intended | POST/GET | `/api/product/admin/page`、`/api/product/admin/status-counts`、`/api/product/admin/sku-batch`、`/api/product/admin/sku-by-ids` | 供 mall-admin 经 Feign 调用的商品管理读取接口；服务端要求 staff，网关公开白名单不覆盖这些路径 |
-| inventory | POST | `/api/inventory/batch` | 批量查询库存，供 BFF 聚合商品页；当前需要登录但没有 staff 角色限制 |
-| admin | POST | `/api/admin/inventory/adjust`、`/api/admin/inventory/record/page` | **尚未实现**：库存调整与流水分页，当前仅保留在计划/页面占位中 |
+| inventory | GET/POST | `/api/inventory/{skuId}`、`/api/inventory/batch` | 库存查询与 BFF 聚合，要求 staff |
+| inventory | POST | `/api/inventory/adjust`、`/api/inventory/record/page` | 库存增量调整（仅 OPERATOR）、幂等审计流水与分页查询 |
 
 ### 管理接口安全状态
 

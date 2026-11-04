@@ -72,8 +72,10 @@ export const PAY_TYPE_DICT = [
 export const INVENTORY_RECORD_TYPE_DICT = [
   { value: 1, label: '扣减', tag: 'danger' },
   { value: 2, label: '回滚', tag: 'success' },
-  { value: 3, label: '初始化', tag: 'info' },
-  { value: 4, label: '调整', tag: 'warning' },
+  { value: 3, label: '预扣', tag: 'warning' },
+  { value: 4, label: '预扣回滚', tag: 'success' },
+  { value: 5, label: '调增', tag: 'primary' },
+  { value: 6, label: '调减', tag: 'danger' },
 ]
 
 /** 退款状态：refund.status */
