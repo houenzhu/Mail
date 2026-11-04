@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "verify:ui": "node scripts/verify-ui.mjs",
     "verify:login": "node scripts/verify-login.mjs",
-    "verify:order": "node scripts/verify-order.mjs"
+    "verify:order": "node scripts/verify-order.mjs",
+    "verify:refund": "node scripts/verify-refund.mjs"
   },
   "dependencies": {
     "axios": "^1.20.0",

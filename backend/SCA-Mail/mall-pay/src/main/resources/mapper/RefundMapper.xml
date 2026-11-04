@@ -44,4 +44,40 @@
         set status = #{status}, fail_reason = #{failReason}, finished_at = #{finishedAt}, active_key = null
         where refund_no = #{refundNo} and status = #{expectStatus}
     </update>
+
+    <sql id="adminPageCondition">
+        <where>
+            <if test="query.refundNo != null and query.refundNo != ''">
+                and refund_no = #{query.refundNo}
+            </if>
+            <if test="query.orderNo != null and query.orderNo != ''">
+                and order_no = #{query.orderNo}
+            </if>
+            <if test="query.userId != null">
+                and user_id = #{query.userId}
+            </if>
+            <if test="query.status != null">
+                and status = #{query.status}
+            </if>
+            <if test="query.createdAtStart != null">
+                and created_at &gt;= #{query.createdAtStart}
+            </if>
+            <if test="query.createdAtEnd != null">
+                and created_at &lt;= #{query.createdAtEnd}
+            </if>
+        </where>
+    </sql>
+
+    <select id="selectAdminPage" resultType="com.zhe.mall.pay.entity.Refund">
+        select <include refid="baseColumns"/>
+        from refund
+        <include refid="adminPageCondition"/>
+        order by created_at desc, refund_no desc
+        limit #{limit} offset #{offset}
+    </select>
+
+    <select id="countAdminPage" resultType="long">
+        select count(1) from refund
+        <include refid="adminPageCondition"/>
+    </select>
 </mapper>

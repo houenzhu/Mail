@@ -14,6 +14,7 @@
 | `08_mall_pay.sql` | `mall_pay` | `payment`（支付单）、`payment_callback_log`（回调流水）、`refund`（退款单）、`pay_reconcile_diff`（对账差异），见需求文档 28.3 |
 | `09_mall_mq.sql` | `mall_order` / `mall_pay` / `mall_inventory` | `local_message`（本地消息表 Outbox，落在生产方库 order / pay）、`consumed_message`（消费幂等表，落在消费方库 inventory / order / pay），见需求文档 19.6 / 20.3 |
 | `10_inventory_operator_audit.sql` | `mall_inventory` | 为库存流水增加可信操作人 ID/用户名字段（兼容 MySQL 8.0.32，可重复执行） |
+| `11_order_shipping.sql` | `mall_order` | 为订单增加物流公司、物流单号、发货时间与发货人字段（UC-ORDER-07，可重复执行） |
 
 ## 执行方式
 
@@ -26,7 +27,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\init-db.ps1
 powershell -ExecutionPolicy Bypass -File .\scripts\init-db.ps1 -MysqlHome 'D:\mysql\mysql-8.0.32-winx64\mysql-8.0.32-winx64' -Password '你的密码'
 ```
 
-建库和建表脚本使用 `CREATE ... IF NOT EXISTS`；库存审计迁移先检查 `information_schema` 再增列。脚本均可重复执行，不会删除或覆盖已有业务数据。
+建库和建表脚本使用 `CREATE ... IF NOT EXISTS`；库存审计与订单物流迁移先检查 `information_schema` 再增列。
+脚本均可重复执行，不会删除或覆盖已有业务数据。
 
 ## 约定
 

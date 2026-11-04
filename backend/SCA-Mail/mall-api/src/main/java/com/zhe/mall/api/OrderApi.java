@@ -3,6 +3,7 @@ package com.zhe.mall.api;
 import com.zhe.mall.api.dto.AdminOrderDetail;
 import com.zhe.mall.api.dto.AdminOrderPageQuery;
 import com.zhe.mall.api.dto.AdminOrderRow;
+import com.zhe.mall.api.dto.AdminShipRequest;
 import com.zhe.mall.api.dto.OrderPayView;
 import com.zhe.mall.api.dto.PayCallbackRequest;
 import com.zhe.mall.api.dto.RefundCallbackRequest;
@@ -55,5 +56,14 @@ public interface OrderApi {
     /** 后台订单详情：订单主体 + 明细 + 状态流转时间线（运营视角，不限订单归属）。 */
     @GetMapping("/admin/{orderNo}")
     Result<AdminOrderDetail> adminDetail(@PathVariable("orderNo") String orderNo);
+
+    /**
+     * 后台发货：已支付 → 已发货，并写入物流公司与单号（UC-ORDER-07）。
+     *
+     * <p>重复发货是幂等的：订单已经是已发货时返回当前详情，不重复写状态日志。
+     */
+    @PostMapping("/admin/{orderNo}/ship")
+    Result<AdminOrderDetail> adminShip(@PathVariable("orderNo") String orderNo,
+                                       @RequestBody AdminShipRequest request);
 }
 

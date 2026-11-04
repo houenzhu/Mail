@@ -7,23 +7,30 @@
  * 数据口径说明：
  *  - 列表来自 `POST /api/admin/order/page`，BFF 聚合后一次返回件数/数量；
  *  - 详情 `GET /api/admin/order/{orderNo}` 返回明细与状态时间线；
- *  - 发货等写操作尚未实现，页面上明确标注，不做假按钮。
+ *  - 发货是唯一写操作（仅 OPERATOR/ADMIN 可见），已支付订单可填写物流信息后发货；
+ *    重复提交同一单号幂等，改单号由后端拒绝。
  */
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 
-import { getOrderDetail, pageOrders } from '@/api/order'
+import { getOrderDetail, pageOrders, shipOrder } from '@/api/order'
 import { ORDER_STATUS_TABS, PAY_TYPE_DICT, dictLabel } from '@/constants/dict'
 import { useTable } from '@/composables/useTable'
+import { usePermission } from '@/composables/usePermission'
 import { formatDateTime, formatMoney, formatNumber } from '@/utils/format'
 
 const route = useRoute()
 const router = useRouter()
+const { hasRole } = usePermission()
 
 const activeTab = ref('all')
 const detailVisible = ref(false)
 const detailLoading = ref(false)
 const detail = ref(null)
+const shipVisible = ref(false)
+const shipLoading = ref(false)
+const shipForm = reactive({ shippingCompany: '', trackingNo: '' })
 
 const filters = reactive({
   orderNo: '',
@@ -118,6 +125,40 @@ async function openDetail(row) {
   }
 }
 
+/** 只有已支付（20）可以发货；已发货展示物流信息，其余状态不显示按钮。 */
+const canShip = computed(() =>
+  hasRole('OPERATOR') && detail.value?.order?.status === 20)
+
+function openShip() {
+  shipForm.shippingCompany = ''
+  shipForm.trackingNo = ''
+  shipVisible.value = true
+}
+
+async function submitShip() {
+  const company = shipForm.shippingCompany.trim()
+  const tracking = shipForm.trackingNo.trim()
+  if (!company || !tracking) {
+    ElMessage.warning('请填写物流公司与物流单号')
+    return
+  }
+  shipLoading.value = true
+  try {
+    const orderNo = detail.value.order.orderNo
+    detail.value = await shipOrder(orderNo, {
+      shippingCompany: company,
+      trackingNo: tracking,
+    })
+    shipVisible.value = false
+    ElMessage.success('发货成功')
+    load()
+  } catch {
+    // 错误提示由 request.js 统一处理；保持弹窗打开便于修正
+  } finally {
+    shipLoading.value = false
+  }
+}
+
 
 /** 列表行的状态标签颜色：复用字典里的 tag 定义 */
 const STATUS_TAG = {
@@ -187,7 +228,7 @@ function tagOf(status) {
     <div class="page-card">
       <div class="table-head">
         <span class="text-muted text-xs">
-          共 {{ formatNumber(total) }} 笔订单 · 当前仅提供查询，发货/退款工作流待接入
+          共 {{ formatNumber(total) }} 笔订单
         </span>
       </div>
 
@@ -302,7 +343,23 @@ function tagOf(status) {
             <el-descriptions-item v-if="detail.order.cancelReason" label="取消原因">
               {{ detail.order.cancelReason }}
             </el-descriptions-item>
+            <el-descriptions-item v-if="detail.order.shippedAt" label="物流公司">
+              {{ detail.order.shippingCompany || '-' }}
+            </el-descriptions-item>
+            <el-descriptions-item v-if="detail.order.shippedAt" label="物流单号">
+              {{ detail.order.trackingNo || '-' }}
+            </el-descriptions-item>
+            <el-descriptions-item v-if="detail.order.shippedAt" label="发货时间">
+              {{ formatDateTime(detail.order.shippedAt) }}
+            </el-descriptions-item>
+            <el-descriptions-item v-if="detail.order.shippedBy" label="发货人">
+              {{ detail.order.shippedBy }}
+            </el-descriptions-item>
           </el-descriptions>
+
+          <div v-if="canShip" class="ship-bar">
+            <el-button type="primary" @click="openShip">发货</el-button>
+          </div>
 
           <h4 class="section-title">商品明细</h4>
           <el-table :data="detail.items" size="small" border>
@@ -337,6 +394,24 @@ function tagOf(status) {
         <el-empty v-else-if="!detailLoading" description="未获取到订单详情" />
       </div>
     </el-drawer>
+
+    <el-dialog v-model="shipVisible" title="订单发货" width="420px">
+      <el-form label-width="88px" @submit.prevent>
+        <el-form-item label="物流公司" required>
+          <el-input v-model="shipForm.shippingCompany" maxlength="64" placeholder="如：顺丰速运" />
+        </el-form-item>
+        <el-form-item label="物流单号" required>
+          <el-input v-model="shipForm.trackingNo" maxlength="64" placeholder="快递单号" @keyup.enter="submitShip" />
+        </el-form-item>
+      </el-form>
+      <p class="text-muted text-xs">
+        发货后订单进入「已发货」，物流单号不可修改；重复提交同一单号不会重复发货。
+      </p>
+      <template #footer>
+        <el-button @click="shipVisible = false">取消</el-button>
+        <el-button type="primary" :loading="shipLoading" @click="submitShip">确认发货</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -371,6 +446,11 @@ function tagOf(status) {
 
 .ml-6 {
   margin-left: 6px;
+}
+
+.ship-bar {
+  margin-top: 12px;
+  text-align: right;
 }
 </style>
 

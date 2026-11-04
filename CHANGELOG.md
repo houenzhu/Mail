@@ -7,6 +7,28 @@
 暂无。
 
 
+## [0.3.0] - 2026-11-04
+
+- M4 第二切片：订单发货 + 后台退款查询。
+  - `mall-order` 新增 `POST /api/order/admin/{orderNo}/ship`：已支付 → 已发货，
+    物流公司与单号与状态在同一条 CAS 中落库；重复提交同一单号幂等，改单号返回 `34002`；
+    操作人取网关注入身份，接口要求 `@RequireStaff(OPERATOR)`。
+  - 新增 `sql/11_order_shipping.sql`：为 `orders` 补 `shipping_company` / `tracking_no` /
+    `shipped_at` / `shipped_by`，可重复执行（information_schema 检查后 ALTER）。
+  - `mall-pay` 新增 `/api/pay/admin/refund/page` 与 `/{refundNo}`：全量退款单分页
+    （退款单号 / 订单号 / 买家 / 状态 / 时间区间）与详情，类级 `@RequireStaff`。
+  - `mall-admin` 新增订单发货转发与 `/api/admin/refund/**` BFF，均不降级、错误码原样透传。
+  - 前端订单详情抽屉增加「发货」按钮与物流弹窗（仅 OPERATOR/ADMIN 可见）；
+    退款页替换占位页，接真实分页、状态 Tab、筛选与详情抽屉。
+  - 修正前端角色判定：`hasRole` 改为与后端一致的包含关系（ADMIN 覆盖 OPERATOR/CS），
+    此前 admin 账号看不到发货按钮。
+  - 修正 `REFUND_STATUS_DICT`：按后端 `RefundStatus` 改为 0/10/20/30，
+    原先误用了支付单的 10/20/30/50。
+  - 新增 22 个后端单测（mall-order 7 + mall-pay 7 + mall-admin 8），
+    后端测试合计 47 个全绿；新增 `npm run verify:refund` 与 `scripts/seed-paid-order.mjs`，
+    E2E 接口 15 项、UI 18 项全部通过。
+
+
 ## [0.2.0] - 2026-11-04
 
 - 后台订单管理查询切片（M4 第一步）：

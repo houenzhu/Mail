@@ -11,7 +11,10 @@ public enum OrderOperator {
 
     PAY("pay", "支付"),
 
-    MQ("mq", "消息");
+    MQ("mq", "消息"),
+
+    /** 后台运营/管理员操作（发货等），操作人身份来自网关注入的可信头。 */
+    ADMIN("admin", "后台");
 
     private final String code;
 

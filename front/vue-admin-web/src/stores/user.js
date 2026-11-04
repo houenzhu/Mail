@@ -7,6 +7,25 @@ import { useTagsStore } from '@/stores/tags'
 /** 可进入后台的角色（对齐需求文档 16.1：客服 / 运营 / 管理员） */
 const STAFF_ROLES = ['OPERATOR', 'CS', 'ADMIN']
 
+/**
+ * 角色包含关系，必须与后端 `CurrentUser#hasRole` 保持一致：
+ *  - ADMIN 覆盖 OPERATOR 与 CS
+ *  - OPERATOR 覆盖 CS
+ *
+ * ⚠️ 前端曾用严格相等匹配，导致 admin 账号看不到「发货」按钮（后端却允许），
+ * 这类"最高权限反而不能操作"的错位必须在这一处统一修，而不是在每个页面各写一遍。
+ */
+const ROLE_IMPLIES = {
+  ADMIN: ['OPERATOR', 'CS'],
+  OPERATOR: ['CS'],
+}
+
+/** 当前角色集合是否覆盖目标角色 */
+function coversRole(roles, role) {
+  if (roles.includes(role)) return true
+  return roles.some((owned) => (ROLE_IMPLIES[owned] ?? []).includes(role))
+}
+
 export const useUserStore = defineStore('user', {
   state: () => ({
     accessToken: getAccessToken(),
@@ -35,7 +54,7 @@ export const useUserStore = defineStore('user', {
     hasRole(...roles) {
       const flat = roles.flat().filter((role) => role != null)
       if (!flat.length) return true
-      return this.roles.some((role) => flat.includes(role))
+      return flat.some((role) => coversRole(this.roles, role))
     },
 
     /**

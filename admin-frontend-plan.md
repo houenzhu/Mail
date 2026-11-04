@@ -88,7 +88,7 @@
 | G-02 | 管理端商品列表 | 需要"全部商品（含下架/已删除）+ 销量 + 时间 + 库存"，现有 `GET /api/product/page` 是 C 端语义（`ProductDTO` 仅 7 个字段、无库存无时间） | **P0** |
 | G-03 | 商品编辑 / 逻辑删除 | 无 `PUT /api/admin/product/{id}`、`DELETE /api/admin/product/{id}` | **P0** |
 | G-04 | 管理端订单列表 | `GET /api/order/page` **强制按当前登录人过滤**（`@CurrentUserId`），运营看不到全量订单 | **P0** |
-| G-05 | 订单发货 / 确认收货 | `POST /api/admin/order/{orderNo}/ship`（UC-ORDER-07，P1 用例）不存在；`/confirm`（UC-ORDER-06）也不存在 | **P0**（发货） |
+| G-05 | 订单发货 / 确认收货 | 发货已落地：`POST /api/admin/order/{orderNo}/ship`（UC-ORDER-07，写入物流公司与单号，仅 OPERATOR/ADMIN）；`/confirm`（UC-ORDER-06）仍不存在 | **已完成（发货）** |
 | G-06 | 库存分页列表 | 只有 `GET /api/inventory/{skuId}` 单条，管理端需要分页 + 按 SKU 名称搜索 | **P0** |
 | G-07 | 库存调整与流水查询（历史缺口） | 初始盘点时手工调整和流水查询未实现；现已落地，当前状态见第 14.5 节 | **已完成** |
 | G-08 | 分类 / 品牌管理 | 商品新增必须传 `categoryId` / `brandId`，但没有任何接口能列出或维护它们 → **发布商品表单无法填** | **P0** |
@@ -313,9 +313,9 @@ response => {
 | `/product/create` | 发布商品 | 商品→发布商品 | SPU 表单 + SKU 多行编辑 + 库存初始化；分类/品牌下拉 | ✅ 商品新增和目录接口已接通 | **已交付** |
 | `/product/edit/:id` | 编辑商品 | 商品→编辑 | 回显 + 修改 + SKU 增删改 | ✅ BFF 提供真实商品/SKU 回显和编辑 | **已交付** |
 | `/category/list` | 分类与品牌 | 商品→商品分类 | 分类 CRUD、品牌 CRUD | ✅ 已接 BFF 和下游写接口 | **已交付** |
-| `/order/list` | 订单管理 | 交易→订单管理 | 全量订单筛选、详情、发货 | ❌ 后台接口未实现 | 路由已注册；页面占位 |
+| `/order/list` | 订单管理 | 交易→订单管理 | 全量订单筛选、详情、发货 | ✅ 分页/详情/发货均已接通 | **已交付（M4 第二切片）** |
 | `/order/detail/:orderNo` | 订单详情 | 订单详情 | 商品明细、收货信息、状态时间线 | ❌ 后台详情接口未实现 | 尚未注册/实现，为目标路由 |
-| `/refund/list` | 退款处理 | 客服→退款 | 退款单列表、状态筛选、详情 | ⚠️ 只有买家侧申请/单笔查询；后台列表与客服处理未实现 | M4 待做 |
+| `/refund/list` | 退款处理 | 客服→退款 | 退款单列表、状态筛选、详情 | ✅ 后台分页与详情已接通；审核/驳回属第四阶段 | **已交付（查询切片）** |
 | `/inventory/list` | 库存管理 | 商品→库存 | 商品级库存汇总、SKU 调整、低库存高亮 | ✅ 商品汇总与 SKU 调整均接真实接口 | 已接通 |
 | `/inventory/record` | 库存流水 | — | 按 SKU ID/类型筛选流水 | ✅ 后台分页接口与页面已接通 | 已接通 |
 | `/dashboard` | 数据看板 | 数据 | GMV、订单量、售罄率趋势 | ❌ G-10 | 路由已注册；页面占位 |
@@ -443,8 +443,8 @@ response => {
 
 ### M4 订单与退款
 
-> **状态更新（2026-11-04）：查询切片已落地。** 后台订单分页与详情已接真实接口并完成 E2E 验收；
-> 发货与退款工作流仍未实现，是本里程碑的剩余部分。
+> **状态更新（2026-11-04）：订单与退款切片已落地。** 后台订单分页/详情/发货与退款单分页/详情
+> 均已接真实接口并完成 E2E 验收。退款审核/驳回工作流属第四阶段，不在本里程碑。
 
 - [x] **后端配套（查询部分）**：`POST /api/admin/order/page`（G-04：全量 + 订单号/买家/状态/日期筛选）、`GET /api/admin/order/{orderNo}`（运营视角详情）
   - `mall-order` 新增 `AdminOrderController` + `AdminOrderQueryService`（类级 `@RequireStaff`，与 C 端查询分开挂载）
@@ -453,9 +453,20 @@ response => {
   - 时间筛选支持 `yyyy-MM-dd`（结束日自动补 23:59:59.999）与 `yyyy-MM-dd HH:mm:ss`；非法格式报参数错误而非静默忽略
 - [x] 订单列表（状态 Tab、订单号/买家/时间筛选）
 - [x] 订单详情（明细、收货信息、金额、**状态流转时间线**）
-- [ ] 发货操作（`POST /api/admin/order/{orderNo}/ship`，G-05 / UC-ORDER-07）
-- [ ] 退款列表与详情
+- [x] 发货操作（`POST /api/admin/order/{orderNo}/ship`，G-05 / UC-ORDER-07）
+  - 新增 `sql/11_order_shipping.sql` 补物流字段；状态与物流同条 CAS，重复提交同单号幂等
+  - 前端详情抽屉「发货」弹窗，仅 OPERATOR/ADMIN 可见（修正了前端角色包含关系）
+- [x] 退款列表与详情（`/api/admin/refund/page`、`/{refundNo}`，mall-pay 类级 `@RequireStaff`）
 - [ ] （收尾）多标签页令牌同步
+- **验收（发货 + 退款切片，2026-11-04 已执行）**：
+  - 后端单测 22 个（mall-order 7 + mall-pay 7 + mall-admin 8）全绿，三模块合计 47 个；
+  - E2E 15 项通过：发货 `20 → 30` 并落物流字段、重复同单号幂等（日志仍为 3 条）、改单号 `34002`、
+    未支付发货 `34002`、买家发货 403、OPERATOR 可发货、空单号 `10001`；
+    退款分页 total=4、status=20 全命中、日期区间、非法状态/时间 `10003`、详情、不存在 `35005`、
+    买家 403、匿名 401、直连 mall-pay 401；
+  - UI 验收 `npm run verify:refund` 18 项全绿：退款 Tab/筛选/详情、发货弹窗填写与提交、
+    状态变「已发货」且物流信息与时间线回显；截图留档 `verify-out/30~35-*.png`；
+  - 回归 `npm run verify:order` 通过（本地「已支付」订单被消耗完时按空态校验）。
 - **验收（查询切片，2026-11-04 已执行）**：
   - 后端单测 17 个（mall-order 11 + mall-admin 6）全绿，含 Mapper XML 离线解析校验；
   - E2E 14 项通过：分页（total=18）、status=20（4 笔）/status=50（10 笔）与 SQL 抽查一致、订单号精确、日期区间、买家筛选、
@@ -544,8 +555,8 @@ response => {
 | 商品详情与维护 | `GET /api/admin/product/{id}`、`POST /api/admin/product`、`PUT /api/admin/product/{id}`、`PUT /api/admin/product/{id}/status`、`DELETE /api/admin/product/{id}` | ✅ 已实现，写权限在下游校验 |
 | 分类/品牌 | `GET /api/admin/category/list`、`GET /api/admin/brand/list` 及对应 POST/PUT/DELETE | ✅ 已实现 |
 | 库存分页/调整/流水 | `/api/admin/inventory/adjust`、`record/page`，单 SKU 回显 `/sku/{skuId}` | ✅ 调整写幂等流水；流水分页由 BFF 批量补 SKU 信息；库存汇总沿用商品页 |
-| 管理端订单/发货 | `/api/admin/order/page`、详情、`ship` | ❌ 尚未实现；现有订单接口主要是买家本人订单与内部回调 |
-| 后台退款工作流 | `/api/admin/refund/page` 等 | ❌ 尚未实现；已有买家退款申请与单笔查询，不含客服处理 |
+| 管理端订单/发货 | `/api/admin/order/page`、`/{orderNo}`、`/{orderNo}/ship` | ✅ 已实现；发货要求 OPERATOR（ADMIN 覆盖），状态与物流同条 CAS 落库 |
+| 后台退款查询 | `/api/admin/refund/page`、`/{refundNo}` | ✅ 已实现；只读查询与审计，审核/驳回与部分退款未实现 |
 | 数据看板 | `GET /api/admin/dashboard` | ❌ 尚未实现 |
 | 商品图上传 | 原规划 `POST /api/admin/upload` | ❌ 尚未实现；当前使用图片 URL |
 | 商品销量 | `product.sales` 累计写入、30 日销量 | ❌ 无可靠累计销量写入；30 日销量接口/口径也未完成 |

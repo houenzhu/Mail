@@ -5,7 +5,7 @@ import http from './request'
  *
  * 契约与后端一一对应（需求文档第十八章 + M4 计划）：
  *  - 分页用 POST + body（筛选条件多且大多可选）；
- *  - 只读接口，发货等写操作在后续切片加入。
+ *  - 发货是唯一写接口（`POST /admin/order/{orderNo}/ship`，仅 OPERATOR/ADMIN）。
  */
 
 /**
@@ -20,4 +20,14 @@ export function pageOrders(params) {
 /** 后台订单详情：订单主体 + 明细 + 状态流转时间线 */
 export function getOrderDetail(orderNo) {
   return http.get(`/admin/order/${encodeURIComponent(orderNo)}`)
+}
+
+/**
+ * 发货：已支付 → 已发货，写入物流公司与单号。
+ * 重复提交同一单号是幂等的；改单号会被后端拒绝（需走售后）。
+ * @param {string} orderNo
+ * @param {{shippingCompany: string, trackingNo: string}} payload
+ */
+export function shipOrder(orderNo, payload) {
+  return http.post(`/admin/order/${encodeURIComponent(orderNo)}/ship`, payload)
 }

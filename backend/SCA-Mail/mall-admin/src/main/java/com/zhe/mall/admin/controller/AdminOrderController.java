@@ -4,9 +4,12 @@ import com.zhe.mall.admin.service.AdminOrderService;
 import com.zhe.mall.api.dto.AdminOrderDetail;
 import com.zhe.mall.api.dto.AdminOrderPageQuery;
 import com.zhe.mall.api.dto.AdminOrderRow;
+import com.zhe.mall.api.dto.AdminShipRequest;
 import com.zhe.mall.common.auth.RequireStaff;
+import com.zhe.mall.common.auth.UserRole;
 import com.zhe.mall.common.result.PageResult;
 import com.zhe.mall.common.result.Result;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -20,8 +23,8 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>鉴权与商品/库存一致：网关保证会话有效，BFF 控制器要求 staff，
  * 下游 {@code mall-order} 的 {@code /api/order/admin/**} 再校验一次 staff，形成双层边界。
  *
- * <p>当前只提供查询（分页 + 详情）；发货等写操作在后续切片里加，
- * 届时同样由下游 {@code @RequireStaff(OPERATOR)} 做操作级校验。
+ * <p>查询（分页 + 详情）对任意 staff 开放；发货额外要求 OPERATOR，
+ * 并在下游 {@code mall-order} 再校验一次，形成双层边界。
  */
 @RestController
 @RequestMapping("/api/admin/order")
@@ -50,5 +53,13 @@ public class AdminOrderController {
     @GetMapping("/{orderNo}")
     public Result<AdminOrderDetail> detail(@PathVariable("orderNo") String orderNo) {
         return Result.success(adminOrderService.detail(orderNo));
+    }
+
+    /** 发货：已支付 → 已发货，写入物流公司与单号（UC-ORDER-07）。 */
+    @PostMapping("/{orderNo}/ship")
+    @RequireStaff(UserRole.OPERATOR)
+    public Result<AdminOrderDetail> ship(@PathVariable("orderNo") String orderNo,
+                                         @Valid @RequestBody AdminShipRequest request) {
+        return Result.success(adminOrderService.ship(orderNo, request));
     }
 }

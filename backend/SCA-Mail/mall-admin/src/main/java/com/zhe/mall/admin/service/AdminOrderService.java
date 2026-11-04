@@ -4,6 +4,7 @@ import com.zhe.mall.api.OrderApi;
 import com.zhe.mall.api.dto.AdminOrderDetail;
 import com.zhe.mall.api.dto.AdminOrderPageQuery;
 import com.zhe.mall.api.dto.AdminOrderRow;
+import com.zhe.mall.api.dto.AdminShipRequest;
 import com.zhe.mall.common.exception.BusinessException;
 import com.zhe.mall.common.result.PageResult;
 import com.zhe.mall.common.result.Result;
@@ -44,6 +45,22 @@ public class AdminOrderService {
             throw new BusinessException(ResultCode.PARAM_MISSING, "orderNo 不能为空");
         }
         return unwrap(orderApi.adminDetail(orderNo.trim()), "查询订单详情");
+    }
+
+    /**
+     * 发货：把请求原样转给订单服务，成功后回读详情。
+     *
+     * <p>BFF 不判断"能不能发"——状态机、角色与幂等都在 mall-order 内，
+     * 这里只翻译错误码，保证前后端只有一套业务规则。
+     */
+    public AdminOrderDetail ship(String orderNo, AdminShipRequest request) {
+        if (orderNo == null || orderNo.isBlank()) {
+            throw new BusinessException(ResultCode.PARAM_MISSING, "orderNo 不能为空");
+        }
+        if (request == null) {
+            throw new BusinessException(ResultCode.PARAM_MISSING, "发货信息不能为空");
+        }
+        return unwrap(orderApi.adminShip(orderNo.trim(), request), "订单发货");
     }
 
     /** 取 Result.data，业务失败转成异常（与 AdminProductService 同一口径）。 */

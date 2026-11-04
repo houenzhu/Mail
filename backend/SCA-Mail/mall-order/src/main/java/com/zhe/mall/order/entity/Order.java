@@ -42,6 +42,14 @@ public class Order {
 
     private String cancelReason;
 
+    private String shippingCompany;
+
+    private String trackingNo;
+
+    private LocalDateTime shippedAt;
+
+    private String shippedBy;
+
     private Integer deleted;
 
     private LocalDateTime createdAt;

@@ -5,7 +5,8 @@
     <sql id="baseColumns">
         order_no, user_id, request_id, status, total_amount, discount_amount, pay_amount,
         coupon_id, pay_type, receiver_name, receiver_phone, receiver_address, remark,
-        expire_at, paid_at, cancelled_at, cancel_reason, deleted, created_at, updated_at
+        expire_at, paid_at, cancelled_at, cancel_reason, shipping_company, tracking_no, shipped_at, shipped_by,
+        deleted, created_at, updated_at
     </sql>
 
     <sql id="pageCondition">
@@ -108,6 +109,13 @@
     <update id="markCancelled">
         update orders
         set status = #{status}, cancelled_at = #{cancelledAt}, cancel_reason = #{cancelReason}
+        where order_no = #{orderNo} and deleted = 0 and status = #{expectStatus}
+    </update>
+
+    <update id="markShipped">
+        update orders
+        set status = #{status}, shipping_company = #{shippingCompany}, tracking_no = #{trackingNo},
+            shipped_at = #{shippedAt}, shipped_by = #{shippedBy}
         where order_no = #{orderNo} and deleted = 0 and status = #{expectStatus}
     </update>
 </mapper>

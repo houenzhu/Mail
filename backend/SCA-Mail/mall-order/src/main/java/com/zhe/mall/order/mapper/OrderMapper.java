@@ -41,6 +41,15 @@ public interface OrderMapper {
                       @Param("cancelledAt") LocalDateTime cancelledAt,
                       @Param("cancelReason") String cancelReason);
 
+    /** 发货：20 → 30，同一 CAS 内写入物流信息，避免"状态已变但物流没落库"。 */
+    int markShipped(@Param("orderNo") String orderNo,
+                    @Param("expectStatus") Integer expectStatus,
+                    @Param("status") Integer status,
+                    @Param("shippingCompany") String shippingCompany,
+                    @Param("trackingNo") String trackingNo,
+                    @Param("shippedAt") LocalDateTime shippedAt,
+                    @Param("shippedBy") String shippedBy);
+
     List<Order> selectTimeoutCandidates(@Param("limit") int limit);
     /* ---------------- 后台订单查询 ---------------- */
 

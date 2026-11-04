@@ -151,6 +151,11 @@ powershell -ExecutionPolicy Bypass -File .\scripts\init-db.ps1
 | admin | GET | `/api/admin/inventory/sku/{skuId}` | 单 SKU 库存回显，要求 staff |
 | admin | POST | `/api/admin/inventory/adjust` | 增量调库存并写幂等流水；仅运营/管理员 |
 | admin | POST | `/api/admin/inventory/record/page` | 按 SKU / 类型分页查询流水并补齐 SKU 信息，要求 staff |
+| order | POST | `/api/order/admin/{orderNo}/ship` | **后台发货**：已支付 → 已发货，同条 CAS 写入物流公司与单号；重复同单号幂等、改单号 `34002`；`@RequireStaff(OPERATOR)` |
+| admin | POST | `/api/admin/order/{orderNo}/ship` | 后台发货 BFF（转发 + 错误码翻译，不做降级） |
+| pay | POST | `/api/pay/admin/refund/page` | **后台退款单分页**：退款单号 / 订单号 / 买家 / 状态 / 时间区间；类级 `@RequireStaff` |
+| pay | GET | `/api/pay/admin/refund/{refundNo}` | 后台退款单详情（含发起方、操作人、渠道退款单号） |
+| admin | POST/GET | `/api/admin/refund/page`、`/api/admin/refund/{refundNo}` | 后台退款查询 BFF（只读，不降级） |
 | product | GET | `/api/product/category/list`、`/api/product/brand/list` | 商品分类/品牌字典；当前作为 GET 商品路径也在网关匿名白名单内 |
 | internal-intended | POST/GET | `/api/product/admin/page`、`/api/product/admin/status-counts`、`/api/product/admin/sku-batch`、`/api/product/admin/sku-by-ids` | 供 mall-admin 经 Feign 调用的商品管理读取接口；服务端要求 staff，网关公开白名单不覆盖这些路径 |
 | inventory | GET/POST | `/api/inventory/{skuId}`、`/api/inventory/batch` | 库存查询与 BFF 聚合，要求 staff |
@@ -166,6 +171,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\init-db.ps1
 （修复了此前"任何登录用户都能新增商品"的越权缺陷，见需求文档 21.3）。
 
 订单状态：`10 待支付 → 20 已支付 → 30 已发货 → 40 已完成`；`10 → 50 已取消`；`20 → 60 退款中 → 70 已退款`；退款驳回 `60 → 20`。流转由 `OrderStateMachine` 集中校验，非法流转返回业务异常。
+发货（`20 → 30`）由后台运营/管理员触发，物流公司与单号在同一条 CAS 中落库；订单已是已发货时同单号幂等返回，改单号拒绝。
 
 配置中心按 `optional:nacos:${spring.application.name}.yaml` 加载，即 dataId 为 `mall-user.yaml` 这类文件名；Nacos 中不存在该配置时服务照常启动。若要改成本地优先级更高或强制拉取，调整 `spring.config.import` 即可。
 

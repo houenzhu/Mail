@@ -26,6 +26,10 @@ public record AdminOrderRow(
         LocalDateTime paidAt,
         LocalDateTime cancelledAt,
         String cancelReason,
+        String shippingCompany,
+        String trackingNo,
+        LocalDateTime shippedAt,
+        String shippedBy,
         LocalDateTime createdAt,
         Integer itemCount,
         Integer totalQty) {

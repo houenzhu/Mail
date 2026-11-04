@@ -48,7 +48,7 @@ class AdminOrderServiceTest {
         AdminOrderRow row = new AdminOrderRow("A001", 10002L, 20, "已支付",
                 new BigDecimal("499.00"), BigDecimal.ZERO, new BigDecimal("499.00"),
                 1, "张三", "13800000000", "上海市", null,
-                null, null, null, null, null, 1, 1);
+                null, null, null, null, null, null, null, null, null, 1, 1);
         when(orderApi.adminPage(query))
                 .thenReturn(Result.success(PageResult.of(1, 2, 20, List.of(row))));
 

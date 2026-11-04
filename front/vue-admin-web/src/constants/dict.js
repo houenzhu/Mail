@@ -78,12 +78,30 @@ export const INVENTORY_RECORD_TYPE_DICT = [
   { value: 6, label: '调减', tag: 'danger' },
 ]
 
-/** 退款状态：refund.status */
+/**
+ * 退款状态：refund.status（需求文档 16.5）
+ * 0 待审核 / 10 退款中 / 20 退款成功 / 30 退款失败
+ * ⚠️ 旧字典曾写成 10/20/30/50（与 payment 混淆），已按后端 RefundStatus 修正。
+ */
 export const REFUND_STATUS_DICT = [
-  { value: 10, label: '待处理', tag: 'warning' },
-  { value: 20, label: '处理中', tag: 'primary' },
-  { value: 30, label: '失败', tag: 'danger' },
-  { value: 50, label: '已退款', tag: 'success' },
+  { value: 0, label: '待审核', tag: 'warning' },
+  { value: 10, label: '退款中', tag: 'primary' },
+  { value: 20, label: '退款成功', tag: 'success' },
+  { value: 30, label: '退款失败', tag: 'danger' },
+]
+
+export const REFUND_STATUS_TABS = [
+  { key: 'all', label: '全部', status: undefined },
+  { key: '10', label: '退款中', status: 10 },
+  { key: '20', label: '退款成功', status: 20 },
+  { key: '30', label: '退款失败', status: 30 },
+]
+
+/** 退款发起方：refund.operator（21.7 审计要求） */
+export const REFUND_OPERATOR_DICT = [
+  { value: 'user', label: '买家' },
+  { value: 'cs', label: '客服' },
+  { value: 'admin', label: '管理员' },
 ]
 
 /** 支付单状态：payment.status */

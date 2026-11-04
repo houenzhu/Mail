@@ -1,8 +1,11 @@
 package com.zhe.mall.pay.mapper;
 
+import com.zhe.mall.api.dto.AdminRefundPageQuery;
 import com.zhe.mall.pay.entity.Refund;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+
+import java.util.List;
 
 @Mapper
 public interface RefundMapper {
@@ -38,4 +41,12 @@ public interface RefundMapper {
                    @Param("status") Integer status,
                    @Param("failReason") String failReason,
                    @Param("finishedAt") java.time.LocalDateTime finishedAt);
+
+    /* ---------------- 后台退款查询 ---------------- */
+
+    List<Refund> selectAdminPage(@Param("query") AdminRefundPageQuery query,
+                                 @Param("offset") int offset,
+                                 @Param("limit") int limit);
+
+    long countAdminPage(@Param("query") AdminRefundPageQuery query);
 }

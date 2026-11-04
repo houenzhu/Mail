@@ -14,6 +14,7 @@ import com.zhe.mall.common.cache.IdempotentGuard;
 import com.zhe.mall.common.cache.MallCacheKeys;
 import com.zhe.mall.common.auth.CurrentUser;
 import com.zhe.mall.common.auth.UserContext;
+import com.zhe.mall.common.auth.UserRole;
 import com.zhe.mall.common.exception.BusinessException;
 import com.zhe.mall.common.mq.MessageTopics;
 import com.zhe.mall.common.mq.OutboxService;
@@ -338,6 +339,66 @@ public class OrderService {
         rollbackInventory(orderNo);
         log.info("取消订单成功: orderNo={}, operator={}, reason={}", orderNo, operator.code(), cancelReason);
         return toDTO(requireOrder(orderNo));
+    }
+
+    /**
+     * 后台发货（UC-ORDER-07）：已支付 → 已发货，并写入物流公司与单号。
+     *
+     * <p>幂等口径：订单已经是「已发货」且物流单号一致时直接返回（重复点击不会产生第二条状态日志）；
+     * 单号不一致则拒绝——已发出的货不能靠改单号"换一单"，需要走售后流程。
+     *
+     * <p>状态与物流信息在同一条 CAS SQL 里写入：避免出现"状态已变 30 但物流字段没落库"
+     * 的中间态，运营和买家都说不清货发去哪了。
+     *
+     * <p>操作人来自网关注入的 {@link UserContext}，不接收请求体里的操作人字段；
+     * 角色校验由控制器 {@code @RequireStaff(OPERATOR)} 完成，这里只做一次防御性检查。
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void ship(String orderNo, String shippingCompany, String trackingNo) {
+        String company = shippingCompany == null ? null : shippingCompany.trim();
+        String tracking = trackingNo == null ? null : trackingNo.trim();
+        if (company == null || company.isEmpty()) {
+            throw new BusinessException(ResultCode.PARAM_MISSING, "物流公司不能为空");
+        }
+        if (tracking == null || tracking.isEmpty()) {
+            throw new BusinessException(ResultCode.PARAM_MISSING, "物流单号不能为空");
+        }
+        CurrentUser operator = UserContext.get();
+        if (operator == null || operator.userId() == null) {
+            throw new BusinessException(ResultCode.UNAUTHORIZED);
+        }
+        if (!operator.hasRole(UserRole.OPERATOR.name())) {
+            throw new BusinessException(ResultCode.FORBIDDEN, "无发货权限");
+        }
+
+        Order order = requireOrder(orderNo);
+        OrderStatus current = OrderStatus.of(order.getStatus());
+        if (current == OrderStatus.SHIPPED) {
+            if (Objects.equals(order.getTrackingNo(), tracking)) {
+                log.info("发货幂等命中: orderNo={}, trackingNo={}", orderNo, tracking);
+                return;
+            }
+            throw new BusinessException(ResultCode.ORDER_STATUS_ILLEGAL,
+                    "订单已发货，物流单号不可修改；如需改单请走售后流程");
+        }
+        OrderStateMachine.check(current, OrderStatus.SHIPPED);
+
+        int affected = orderMapper.markShipped(orderNo, current.code(), OrderStatus.SHIPPED.code(),
+                company, tracking, LocalDateTime.now(), operator.username());
+        if (affected == 0) {
+            Order latest = orderMapper.selectByOrderNo(orderNo);
+            if (latest != null && Objects.equals(latest.getStatus(), OrderStatus.SHIPPED.code())
+                    && Objects.equals(latest.getTrackingNo(), tracking)) {
+                log.info("发货并发幂等命中: orderNo={}", orderNo);
+                return;
+            }
+            throw new BusinessException(ResultCode.ORDER_STATUS_ILLEGAL,
+                    "发货失败：订单状态已变更，请刷新后重试");
+        }
+        writeStatusLog(orderNo, current.code(), OrderStatus.SHIPPED, OrderOperator.ADMIN,
+                "发货：" + company + " / " + tracking);
+        log.info("发货成功: orderNo={}, company={}, trackingNo={}, operator={}",
+                orderNo, company, tracking, operator.username());
     }
 
     /**

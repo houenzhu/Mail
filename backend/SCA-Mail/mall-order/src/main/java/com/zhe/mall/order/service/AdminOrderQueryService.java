@@ -36,7 +36,7 @@ import java.util.stream.Collectors;
  * <ul>
  *   <li>C 端强制按当前登录用户过滤，后台按条件全量查；</li>
  *   <li>后台需要展示收货信息、明细件数等运营字段，C 端不需要；</li>
- *   <li>写操作（发货/取消）后续也放这里，保持"读视图"和"状态机写"各自演进。</li>
+ *   <li>写操作（发货）在 {@link OrderService} 里：状态机、CAS 与状态日志都在那一处，避免两套实现。</li>
  * </ul>
  *
  * <p><b>角色校验不在这里</b>：身份由网关注入，本服务控制器上标注 {@code @RequireStaff}，
@@ -189,7 +189,8 @@ public class AdminOrderQueryService {
                 order.getPayAmount(), order.getPayType(), order.getReceiverName(),
                 order.getReceiverPhone(), order.getReceiverAddress(), order.getRemark(),
                 order.getExpireAt(), order.getPaidAt(), order.getCancelledAt(),
-                order.getCancelReason(), order.getCreatedAt(),
+                order.getCancelReason(), order.getShippingCompany(), order.getTrackingNo(),
+                order.getShippedAt(), order.getShippedBy(), order.getCreatedAt(),
                 stat == null ? 0 : stat.itemCount(),
                 stat == null ? 0 : stat.totalQty());
     }
