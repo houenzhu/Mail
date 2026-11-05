@@ -21,6 +21,7 @@ import {
   listBrands,
   listCategories,
   updateProduct,
+  uploadProductImage,
 } from '@/api/product'
 import { formatMoney } from '@/utils/format'
 
@@ -30,6 +31,9 @@ const router = useRouter()
 const formRef = ref()
 const loading = ref(false)
 const submitting = ref(false)
+const uploading = ref(false)
+const uploadPercent = ref(0)
+const fileInput = ref()
 const categories = ref([])
 const brands = ref([])
 
@@ -106,6 +110,44 @@ async function loadProduct() {
     if (!e?.code) ElMessage.error('加载商品失败')
   } finally {
     loading.value = false
+  }
+}
+
+/** 上传前先挡掉明显不合适的文件，真正校验仍在后端（按文件头识别）。 */
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024
+
+function pickImage() {
+  fileInput.value?.click()
+}
+
+async function onImagePicked(event) {
+  const file = event.target.files?.[0]
+  // 允许重复选择同一文件
+  event.target.value = ''
+  if (!file) return
+  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+    ElMessage.warning('仅支持 JPG / PNG / WEBP / GIF 图片')
+    return
+  }
+  if (file.size > MAX_IMAGE_SIZE) {
+    ElMessage.warning('图片不能超过 5 MB')
+    return
+  }
+
+  uploading.value = true
+  uploadPercent.value = 0
+  try {
+    const result = await uploadProductImage(file, (percent) => {
+      uploadPercent.value = percent
+    })
+    form.mainImage = result.url
+    ElMessage.success('图片上传成功')
+  } catch (e) {
+    // 业务错误（38001~38004）已由请求层提示；这里只兜底网络类异常
+    if (!e?.code) ElMessage.error('图片上传失败，请检查 OSS 配置')
+  } finally {
+    uploading.value = false
   }
 }
 
@@ -207,9 +249,34 @@ async function onSubmit() {
           </el-select>
         </el-form-item>
 
-        <el-form-item label="主图地址" prop="mainImage">
-          <el-input v-model="form.mainImage" placeholder="图片 URL（文件上传接口待建，先填外链）" />
-          <span class="text-muted text-xs hint">后端暂无上传接口（G-09），当前只支持填 URL</span>
+        <el-form-item label="商品主图" prop="mainImage">
+          <div class="image-field">
+            <div class="image-preview">
+              <el-image
+                v-if="form.mainImage"
+                :src="form.mainImage"
+                fit="cover"
+                class="image-thumb"
+                :preview-src-list="[form.mainImage]"
+                preview-teleported
+              />
+              <div v-else class="image-placeholder">暂无图片</div>
+            </div>
+            <div class="image-actions">
+              <el-button :loading="uploading" @click="pickImage">
+                <el-icon><Upload /></el-icon>{{ uploading ? `上传中 ${uploadPercent}%` : '上传图片' }}
+              </el-button>
+              <el-button v-if="form.mainImage" link type="danger" @click="form.mainImage = ''">移除</el-button>
+              <input
+                ref="fileInput"
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                hidden
+                @change="onImagePicked"
+              />
+              <span class="text-muted text-xs">支持 JPG / PNG / WEBP / GIF，最大 5 MB；保存的是上传后的图片地址</span>
+            </div>
+          </div>
         </el-form-item>
 
         <el-divider content-position="left">SKU 与库存</el-divider>
@@ -310,6 +377,44 @@ async function onSubmit() {
 
 .sku-table {
   margin-bottom: 10px;
+}
+
+.image-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.image-preview {
+  width: 112px;
+  height: 112px;
+  border: 1px dashed var(--el-border-color);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--el-fill-color-lighter);
+}
+
+.image-thumb {
+  width: 112px;
+  height: 112px;
+  display: block;
+}
+
+.image-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--el-text-color-placeholder);
+  font-size: 12px;
+}
+
+.image-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
 }
 
 .sku-foot {

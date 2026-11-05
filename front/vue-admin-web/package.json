@@ -14,7 +14,8 @@
     "verify:multitab": "node scripts/verify-multitab.mjs",
     "verify:dashboard": "node scripts/verify-dashboard.mjs",
     "verify:confirm": "node scripts/verify-confirm.mjs",
-    "verify:refund-audit": "node scripts/verify-refund-audit.mjs"
+    "verify:refund-audit": "node scripts/verify-refund-audit.mjs",
+    "verify:upload": "powershell -NoProfile -ExecutionPolicy Bypass -File ../backend/SCA-Mail/scripts/e2e-upload.ps1"
   },
   "dependencies": {
     "axios": "^1.20.0",

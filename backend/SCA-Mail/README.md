@@ -41,7 +41,7 @@
 ## 当前实现边界
 
 - 管理后台已接通登录、商品管理、分类/品牌维护、库存调整与流水查询、订单查询/发货/确认收货、退款查询与**审核/驳回**、数据看板；库存调整、订单写操作与退款审批只允许运营/管理员，客服可查看。看板由 `mall-admin` 聚合订单/支付/库存三个服务，见 [后台前端说明](../../front/vue-admin-web/README.md)。
-- 买家端 `front/vue-mall` 仍为初始脚手架，尚无商城业务流程；**购物车后端已交付（`mall-cart`，端口 8109），但 C 端购物车页面尚未接入**。
+- 买家端 `front/vue-mall` 已接入首页、搜索、登录注册、账户中心、商品详情 / SKU 与购物车；购物车后端 `mall-cart`（8109）与页面均已交付，结算预览可用，下单与支付待下一阶段。
 - 当前没有客服会话、工单、知识库或 LangChain Agent 服务。第 30 章记录了作为后续项目的范围、数据准备和接口安全要求；它是规划，不是已交付功能。
 - **权限已补齐（2026-10-28）**：`/api/admin/**` 的商品与目录读取在 BFF 控制器要求 staff，下游管理读取接口再次要求 staff；网关公开商品 GET 白名单已收敛为明确的 C 端路径，不再覆盖 `/api/product/admin/**`。内部身份仍由 `X-Gateway-Token` 证明，直连服务或伪造身份头按匿名处理。
 
@@ -72,6 +72,7 @@
 | `mall.auth.internal-token` | 空（必须配置） | `INTERNAL_TOKEN`（网关与全部服务一致，否则服务端视为匿名） |
 | `mall.auth.phone-salt` | `mall-dev-phone-salt` | `PHONE_SALT`（需与 `sql/07_seed_user_auth.sql` 的盐一致） |
 | `spring.data.redis.*` | `192.168.198.133:6379`，db1，2s 超时；密码空（按需配置） | `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` / `REDIS_DATABASE` |
+| `mall.oss.*`（mall-admin） | Endpoint / Bucket / 公共读稳定 URL；文件上限 5 MB | `OSS_ENDPOINT` / `OSS_BUCKET` / `OSS_PUBLIC_READ`（默认 true）/ `OSS_PUBLIC_BASE_URL` / `OSS_URL_EXPIRE_SECONDS` / `OSS_MAX_FILE_SIZE`；AccessKey 直接读 `AccessKeyID` / `AccessKeySecret` |
 | `mall.cart.*`（mall-cart） | TTL 30 天、最多 100 种 SKU、单 SKU 上限 99 | `CART_TTL_SECONDS` / `CART_MAX_ITEMS` / `CART_MAX_QUANTITY` |
 | `mall.cache.*`（mall-product） | TTL 1800s + 抖动 0~300s、空值 60s、锁 10s | `MALL_CACHE_ENABLED` 等（见需求文档 19.2 / 22.9） |
 | `mall.auth.enabled`（mall-gateway） | 网关鉴权开关，默认 `true`（关闭时仅透传 traceId，仅限本地调试） | `AUTH_ENABLED`；**Redis 不可用时鉴权 fail-closed**（V1.10 起已无黑名单开关，见需求文档 21.9.4 / 27.6） |
@@ -128,6 +129,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\init-db.ps1
 | inventory | POST | `/api/inventory/init` | 初始化库存 |
 | inventory | POST | `/api/inventory/deduct` | 扣减（幂等键 `orderNo + skuId`） |
 | inventory | POST | `/api/inventory/rollback` | 回滚（幂等键 `orderNo + skuId`） |
+| upload | POST | `/api/admin/upload` | **商品图上传**（`multipart/form-data`，字段 `file`）：仅 OPERATOR/ADMIN；按文件头识别 JPG/PNG/WEBP/GIF，默认上限 5 MB；写入阿里云 OSS 并返回 `objectKey` 与稳定 URL（0.9.0） |
 | cart | GET | `/api/cart` | 当前用户购物车（实时刷新价格 / 库存 / 上下架；失效行保留并标记 `invalid`） |
 | cart | POST | `/api/cart` | 加购（同 SKU 累加；单 SKU 上限 99、最多 100 种 SKU；下架 / 售罄拒绝） |
 | cart | PUT | `/api/cart` | 批量修改数量 / 勾选（`quantity <= 0` 删除） |

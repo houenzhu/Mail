@@ -31,7 +31,7 @@ Vite 默认监听 5174，开发代理把 `/api` 转发到 `http://127.0.0.1:1000
 | 登录 | `/login` | 已接真实 `/api/auth/**`，含后台准入校验 |
 | 工作台 | `/workbench` | 已接真实指标：SKU 总数 / 待发货 / 退款中 / 今日 GMV |
 | 我的商品 | `/product/list` | 已接真实分页、状态计数、上下架、逻辑删除；销量 30 日口径未接通 |
-| 发布/编辑商品 | `/product/create`、`/product/edit/:id` | 已接真实新增、详情回显、SKU 差量编辑 |
+| 发布/编辑商品 | `/product/create`、`/product/edit/:id` | 已接真实新增、详情回显、SKU 差量编辑；商品主图支持上传到阿里云 OSS（0.9.0） |
 | 分类与品牌 | `/category/list` | 已接真实列表及增删改 |
 | 库存管理 | `/inventory/list` | 商品级库存汇总；选择 SKU 后可按增量调整并写流水 |
 | 库存流水 | `/inventory/record` | 真实分页，支持 SKU ID / 流水类型筛选，并显示可信操作人 |
@@ -39,6 +39,11 @@ Vite 默认监听 5174，开发代理把 `/api` 转发到 `http://127.0.0.1:1000
 | 退款处理 | /refund/list | 已接真实分页与详情：状态 Tab（含待审核）、筛选、发起方/审核人、渠道退款单号；待审核单可由运营/管理员「同意退款 / 驳回」，客服只读 |
 | 数据看板 | /dashboard | 已接真实聚合接口：4 张指标卡、GMV 与订单量 SVG 趋势（7/30 天切换）、库存售罄率、待办跳转 |
 
+商品图上传走 `POST /api/admin/upload`（`multipart/form-data`，字段 `file`）：仅 OPERATOR/ADMIN，
+后端按文件头识别 JPG/PNG/WEBP/GIF，默认上限 5 MB。密钥只在后端进程环境读取
+（`AccessKeyID` / `AccessKeySecret`），不会下发到浏览器；桶默认公共读并返回稳定 URL，
+避免签名过期后商品主图失效。若改用私有桶，设 `OSS_PUBLIC_READ=false` 即返回临时签名 URL。
+管理员验收：`npm run verify:upload`（需先启动 mall-admin 并配置 OSS）。
 退款申请仍走 C 端 `POST /api/pay/refund`（带 `audit=true` 时进入待审核）。
 审批按钮只在 `status = 0` 且当前账号是 OPERATOR/ADMIN 时出现；真正的边界在服务端，
 前端隐藏只是体验。部分退款和退货退款仍未实现。
@@ -69,6 +74,7 @@ npm run verify:refund       # 退款列表/详情 + 订单发货弹窗（M4 第�
 npm run verify:refund-audit # 退款审核/驳回：待审核 Tab、审批、CS 只读（0.7.0）
 npm run verify:dashboard    # 数据看板：指标卡、趋势图、库存售罄率、待办跳转（M5）
 npm run verify:confirm      # 代客确认收货：真实造单 → 发货 → 二次确认 → 已完成（UC-ORDER-06）
+npm run verify:upload       # 商品图上传：匿名 401 / 买家 403 / 伪装图片 38003 / 真实 OSS 回读
 ```
 
 `verify:refund` 的发货用例需要一笔「已支付」订单；本地可用

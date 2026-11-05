@@ -6,6 +6,21 @@
 
 暂无。
 
+## [0.9.0] - 2026-11-05
+
+- 商品图上传（G-09）落地：`POST /api/admin/upload` 直传阿里云 OSS。
+  - 仅 OPERATOR/ADMIN 可上传（BFF `@RequireStaff(OPERATOR)`）；匿名 401、买家 403。
+  - 服务端按文件头（magic number）识别 JPG / PNG / WEBP / GIF，不信任扩展名或浏览器
+    `Content-Type`；默认上限 5 MB，空文件与伪装图片分别返回 38001 / 38002 / 38003。
+  - AccessKey 只从进程环境读取（`AccessKeyID` / `AccessKeySecret`），不下发浏览器；
+    Bucket 默认公共读并返回稳定 HTTPS URL，避免签名过期导致商品主图破图；
+    若确需私有桶，设 `OSS_PUBLIC_READ=false`，返回带签名临时 URL。
+  - 发布/编辑商品页的主图字段改为「上传 + 预览 + 移除」，保留 URL 回显，编辑旧商品不受影响。
+- 验证：`OssUploadServiceTest` 5 项；mall-admin 单测 36 项全绿；前端 `npm run build` 通过；
+  真实 OSS E2E `scripts/e2e-upload.ps1` 5/5（匿名 401、买家 403、伪装图片 38003、
+  管理员上传成功、URL 回读 200）。
+- 配置：新增 `OSS_ENDPOINT` / `OSS_BUCKET` / `OSS_PUBLIC_READ` / `OSS_PUBLIC_BASE_URL` /
+  `OSS_URL_EXPIRE_SECONDS` / `OSS_MAX_FILE_SIZE`；`start-all.ps1` 会从用户环境补齐 AccessKey。
 ## [0.8.0] - 2026-11-05
 
 - 购物车模块 `mall-cart`（8109）交付，关闭 UC-CART-01 / 02 / 03 的后端缺口。

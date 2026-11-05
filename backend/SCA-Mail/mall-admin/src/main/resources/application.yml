@@ -4,6 +4,11 @@ server:
 spring:
   application:
     name: mall-admin
+  servlet:
+    multipart:
+      # 单文件/单请求上限略高于业务上限（5 MB），让业务层返回可读错误而不是容器直接拒绝
+      max-file-size: ${UPLOAD_MAX_FILE_SIZE:6MB}
+      max-request-size: ${UPLOAD_MAX_REQUEST_SIZE:8MB}
   cloud:
     nacos:
       server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
@@ -35,6 +40,17 @@ mall:
   auth:
     # 与网关、各业务服务保持一致；下游服务只信任携带该令牌的请求
     internal-token: ${INTERNAL_TOKEN:}
+
+  oss:
+    # 商品图上传：密钥只从进程环境读取，不写入仓库
+    enabled: ${OSS_ENABLED:true}
+    endpoint: ${OSS_ENDPOINT:oss-cn-guangzhou.aliyuncs.com}
+    bucket: ${OSS_BUCKET:zheliving-10000}
+    public-base-url: ${OSS_PUBLIC_BASE_URL:}
+    # 商品图本身就需要被 C 端直接展示；桶应设为公共读，返回稳定 URL 而不是会过期的签名 URL
+    public-read: ${OSS_PUBLIC_READ:true}
+    url-expire-seconds: ${OSS_URL_EXPIRE_SECONDS:86400}
+    max-file-size: ${OSS_MAX_FILE_SIZE:5242880}
 
 logging:
   pattern:

@@ -95,3 +95,27 @@ export function updateBrand(brandId, payload) {
 export function deleteBrand(brandId) {
   return http.delete(`/admin/brand/${brandId}`)
 }
+
+/**
+ * 上传商品图到阿里云 OSS（G-09）。
+ *
+ * 后端只信任文件头识别的真实图片，不信任浏览器给的 Content-Type；
+ * 前端仍先做一次大小/类型筛选，避免用户等上传进度条走完才看到错误。
+ *
+ * @param {File} file
+ * @param {(percent: number) => void} [onProgress]
+ * @returns {Promise<{objectKey: string, url: string, size: number}>}
+ */
+export function uploadProductImage(file, onProgress) {
+  const body = new FormData()
+  body.append('file', file)
+  return http.post('/admin/upload', body, {
+    // 不手动设 Content-Type：让浏览器带上 multipart boundary
+    timeout: 60000,
+    onUploadProgress: (event) => {
+      if (onProgress && event.total) {
+        onProgress(Math.round((event.loaded * 100) / event.total))
+      }
+    },
+  })
+}

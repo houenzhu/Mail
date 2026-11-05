@@ -25,6 +25,16 @@ if ($javaHome) {
     }
 }
 
+# OSS 上传（mall-admin）：沿用用户环境变量；未在 GUI 新开的进程里显式补上，
+# 否则从当前终端启动时 Start-Process 继承不到"用户变量"。
+if (-not $env:AccessKeyID) {
+    $env:AccessKeyID = [Environment]::GetEnvironmentVariable('AccessKeyID', 'User')
+}
+if (-not $env:AccessKeySecret) {
+    $env:AccessKeySecret = [Environment]::GetEnvironmentVariable('AccessKeySecret', 'User')
+}
+if (-not $env:OSS_BUCKET) { $env:OSS_BUCKET = 'zheliving-10000' }
+if (-not $env:OSS_ENDPOINT) { $env:OSS_ENDPOINT = 'oss-cn-guangzhou.aliyuncs.com' }
 # 本机 Windows 上 java.base 的 PipeImpl 会优先尝试 AF_UNIX 并报
 # "Unable to establish loopback connection / Invalid argument: connect"。
 # 如果存在临时补丁（强制走 TCP loopback），则自动挂载；补丁不存在不影响正常环境。

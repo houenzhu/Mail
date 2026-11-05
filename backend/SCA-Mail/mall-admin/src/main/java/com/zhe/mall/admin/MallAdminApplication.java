@@ -1,7 +1,9 @@
 package com.zhe.mall.admin;
 
 import org.springframework.boot.SpringApplication;
+import com.zhe.mall.admin.upload.OssProperties;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cloud.openfeign.EnableFeignClients;
 
 /**
@@ -13,6 +15,7 @@ import org.springframework.cloud.openfeign.EnableFeignClients;
  */
 @SpringBootApplication
 @EnableFeignClients(basePackages = "com.zhe.mall.api")
+@EnableConfigurationProperties(OssProperties.class)
 public class MallAdminApplication {
 
     public static void main(String[] args) {

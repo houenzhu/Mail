@@ -115,6 +115,14 @@ public enum ResultCode {
 
     CART_STOCK_NOT_ENOUGH(37008, "购物车商品库存不足"),
 
+    UPLOAD_FILE_EMPTY(38001, "上传文件不能为空"),
+
+    UPLOAD_FILE_TOO_LARGE(38002, "上传文件超过大小限制"),
+
+    UPLOAD_FILE_TYPE_UNSUPPORTED(38003, "仅支持 JPG / PNG / WEBP / GIF 图片"),
+
+    UPLOAD_STORAGE_UNAVAILABLE(38004, "文件存储服务暂不可用"),
+
     DOWNSTREAM_UNAVAILABLE(50001, "下游服务不可用"),
 
     DOWNSTREAM_TIMEOUT(50002, "下游服务超时"),
