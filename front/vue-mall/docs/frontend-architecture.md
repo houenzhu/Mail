@@ -1,18 +1,20 @@
 # 买家端前端架构与交付说明
 
-> 版本：0.2.0 · 阶段二（认证与账户中心）  
+> 版本：0.3.0 · 阶段三（商品详情、SKU 与购物车）
 > 技术栈：Vue 3.5 + Vite 8 + Pinia + Vue Router  
 > 设计基线：淘宝 PC 首页的信息密度与视觉节奏，不复制其品牌素材与业务数据。
 
 ## 1. 目标与边界
 
-阶段二交付一个**可运行、可复用、可逐步接真实业务**的 C 端首页与登录体系：
+阶段三交付一个**可运行、可复用、可逐步接真实业务**的 C 端浏览与购物链路：
 
 - 已完成：全局页头、搜索、分类导航、首屏 Banner、活动入口、猜你喜欢瀑布流、分类展示、服务承诺、页脚、悬浮工具条。
 - 已完成：商品接口适配层，真实网关不可用时自动回退到本地演示数据，页面不白屏。
 - 已完成：响应式布局（桌面 / 平板 / 手机）与基础可访问性（语义标签、键盘焦点、跳过导航、可见焦点环）。
 - 已完成：登录 / 注册、用户态持久化、跨标签刷新互斥、路由守卫与账户中心骨架。
-- 不在本阶段：购物车写入、下单支付、商品详情业务页、地址与订单管理。相关入口统一引导到「功能预告」页，避免假按钮。
+- 已完成：商品详情与 SKU 选择、实时库存与售罄禁用、数量步进、加入购物车、购物车数量 / 勾选 / 全选 / 删除、结算预览。
+- 已完成：购物车状态与页头角标共享，未登录加购会带 `redirect` 跳登录，注销或会话失效时同步清空。
+- 不在本阶段：下单、地址、在线支付与订单管理。结算预览明确标注待下一阶段接入，不伪造成功。
 
 ## 2. 信息架构
 
@@ -22,7 +24,9 @@
 /login                  登录（支持 redirect 与记住用户名）
 /register               注册（昵称选填、密码强度提示）
 /account                账户中心（requiresAuth）
-/feature/:feature       功能预告（购物车、订单等未上线能力）
+/product/:id            商品详情（公开）
+/cart                   购物车（requiresAuth）
+/feature/:feature       功能预告（订单、收藏等未上线能力）
 /:pathMatch(.*)*        404
 ```
 
@@ -34,7 +38,7 @@
 4. `HomeCategoryShowcase`：四大生活场景入口
 5. `HomeRecommend`：猜你喜欢，复用 `MasonryGrid` 瀑布流（桌面 4 列 / 平板 3 列 / 手机 2 列），首卡横跨两列作为精选位
 6. `SiteFooter`：帮助中心、服务条款、备案信息
-7. `FloatingToolbar`：返回顶部、客服、购物车占位与账户入口
+7. `FloatingToolbar`：返回顶部、客服、购物车（未登录跳登录）与账户入口
 
 ## 3. 组件分层
 
@@ -43,6 +47,7 @@ src/
 ├─ api/                    # 只依赖 fetch，可替换为 axios，不耦合视图
 │  ├─ client.js            # 统一响应解包、超时、错误规范、401 刷新重放
 │  ├─ auth.js              # 登录、注册、当前用户、注销与单飞刷新
+│  ├─ cart.js              # 购物车查询 / 加购 / 改数量 / 勾选 / 结算预览
 │  ├─ refreshLock.js       # 跨标签页刷新互斥锁
 │  ├─ tokenStorage.js      # 买家端令牌读写与跨标签同步
 │  └─ product.js           # 商品/分类/品牌查询
@@ -53,6 +58,7 @@ src/
 │  │  ├─ MasonryGrid.vue   # 通用瀑布流容器，不耦合商品业务
 │  │  ├─ AppIcon.vue       # 内联 SVG 图标注册表
 │  │  ├─ BaseButton.vue    # 主/次/文字按钮，统一尺寸与状态
+│  │  ├─ AppToast.vue      # 轻量操作反馈，支持成功 / 错误与自动关闭
 │  │  ├─ BaseTag.vue       # 标签，支持多种色调
 │  │  ├─ SectionHeading.vue
 │  │  └─ EmptyState.vue
@@ -66,7 +72,13 @@ src/
 │  │  └─ FloatingToolbar.vue
 │  ├─ product/
 │  │  ├─ ProductCard.vue   # 商品卡片，支持网格 / 瀑布流 / 精选位
-│  │  └─ ProductGrid.vue   # 搜索等需要行序稳定的规整网格
+│  │  ├─ ProductGrid.vue   # 搜索等需要行序稳定的规整网格
+│  │  ├─ SkuSelector.vue   # specJson 分组、规格联动、售罄 / 不可选状态
+│  │  └─ QuantityStepper.vue # 受控数量步进器，支持键盘与上限
+│  ├─ cart/
+│  │  ├─ CartItemRow.vue   # 购物车行：勾选、规格、数量、小计、删除、失效原因
+│  │  ├─ CartSummaryBar.vue # 全选、已选件数、合计与结算按钮
+│  │  └─ CartCheckoutSheet.vue # 结算预览抽屉
 │  ├─ home/
 │  │  ├─ HomeCategoryNav.vue
 │  │  ├─ HeroBanner.vue
@@ -81,17 +93,22 @@ src/
 │  └─ useMasonryLayout.js  # 瀑布流列数 / 高度 / 精选位布局状态
 ├─ data/                   # 演示数据（与接口 DTO 同形）
 ├─ stores/
-│  └─ user.js              # 用户资料、令牌状态、恢复、注销与会话失效
+│  ├─ user.js              # 用户资料、令牌状态、恢复、注销与会话失效
+│  └─ cart.js              # 购物车聚合状态，写操作回填后端 CartView
 ├─ utils/
 │  ├─ format.js            # 金额、销量、文本截断
 │  ├─ authPreferences.js   # 记住用户名
 │  ├─ media.js             # 图片 URL、比例、兜底与色彩占位
+│  ├─ spec.js              # specJson 解析、规格分组、SKU 匹配与可售判断
+│  ├─ errors.js            # 购物车 / 商品错误码转买家可读文案
 │  └─ masonry.js           # 纯函数瀑布流装箱算法
 └─ views/
    ├─ HomeView.vue
    ├─ SearchView.vue
    ├─ LoginView.vue
    ├─ RegisterView.vue
+   ├─ ProductDetailView.vue
+   ├─ CartView.vue
    ├─ AccountView.vue
    ├─ FeatureView.vue
    └─ NotFoundView.vue
@@ -178,11 +195,26 @@ src/
 {
   id, title, subtitle, image, imageKey, imageRatio,
   priceRange, priceMin, priceMax, salesText, badge,
-  detailPath: '/feature/product-detail?id=...'
+  detailPath: '/product/:id'
 }
 ```
 
-第三阶段商品详情落地后，仅需替换 `toProductView` 中的 `detailPath`。
+阶段三已把 `detailPath` 切换为 `/product/:id`，商品卡片、搜索结果与详情页相关推荐共用同一视图模型。
+
+### 商品详情与 SKU
+- `GET /api/product/{id}/detail` 返回 `product` 与 `skus[]`；`specJson` 是 JSON 字符串，前端在 `utils/spec.js` 解析并聚合成规格组。
+- `available = null` 表示库存服务暂不可用，页面提示「库存待确认」，不当作售罄。
+- `status !== 1` 或 `available === 0` 的 SKU 禁用；商品下架时接口返回 `32002`，页面显示专门的下架态。
+- 数量上限取 `min(99, available)`；`available` 未知时上限为 99，最终以下单扣减为准。
+- 规格选择是受控组件：父组件自动选中首个可售 SKU 后，内部选择状态同步回填，避免切换单个维度时丢失已选条件。
+
+### 购物车契约
+- 写接口都返回完整 `CartView`，store 直接覆盖本地快照；页头角标读取同一个 `totalQuantity`。
+- 数量修改通过队列串行提交，快速点击不会出现「后发请求先返回」导致的回跳。
+- 勾选 / 全选只操作有效行；失效行保留并展示 `invalidReason`，不参与金额与结算。
+- 购物车页进入时强制刷新一次，保证价格、上下架和库存最新。
+- 结算按钮调用 `POST /api/cart/checkout`，抽屉展示勾选行与 `payAmount`；本阶段不创建订单，也不移除购物车商品。
+- 注销、刷新令牌失败、跨标签清除令牌都会调用 `cartStore.reset()`，避免下一个账号看到上一个账号的角标。
 
 ### 认证契约
 
@@ -236,8 +268,8 @@ src/
 | :--- | :--- | :--- | :--- |
 | 一 | 首页、公共布局、商品接口适配、搜索入口、瀑布流 | 桌面与移动端可正常浏览；接口失败可降级；构建通过 | 已完成 |
 | 二 | 登录 / 注册、用户态、账户中心骨架 | 表单校验、令牌持久化、路由守卫、登出、布局无溢出 | 已完成 |
-| 三 | 商品详情、SKU 选择、购物车 | 规格联动、库存校验、购物车持久化 |
-| 四 | 结算、订单、支付回跳 | 地址、运费、订单状态、支付结果轮询 |
+| 三 | 商品详情、SKU 选择、购物车 | 规格联动、库存校验、购物车持久化 | 已完成 |
+| 四 | 结算、订单、支付回跳 | 地址、运费、订单状态、支付结果轮询 | 未开始 |
 | 五 | 评价、客服、营销活动 | 与后端营销/客服模块对齐 |
 
 ## 9. 验证命令
@@ -250,9 +282,10 @@ node scripts/probe.mjs http://localhost:5175 1024
 node scripts/probe.mjs http://localhost:5175 390
 npm run verify -- http://localhost:5175
 npm run verify:auth -- http://localhost:5175
+npm run verify:cart -- http://localhost:5175
 ```
 
-截图输出在 `verify-out/`，覆盖首页、搜索、登录、注册、账户中心，以及 1440px 桌面与 390px 移动端，并检查控制台异常。
+截图输出在 `verify-out/`，覆盖首页、搜索、登录、注册、账户中心、商品详情、购物车与结算预览，以及 1440px 桌面与 390px 移动端，并检查控制台异常。
 
 ## 10. 阶段二验收结论
 
@@ -260,3 +293,11 @@ npm run verify:auth -- http://localhost:5175
 - `npm run verify -- http://127.0.0.1:5175` 通过，首页与搜索未发现 JS / 控制台错误。
 - 1440 / 1024 / 390 瀑布流分别为 4 / 3 / 2 列，无横向溢出。
 - `npm run verify:auth -- http://127.0.0.1:5175` 通过 16/16：守卫、错误密码、登录资料、刷新恢复、无感续期、账户菜单、移动布局、注销与注册校验均通过。
+## 11. 阶段三验收结论
+
+- `npm run build` 通过。
+- `npm run verify` 通过，首页与搜索无 JS / 控制台错误。
+- `npm run verify:auth` 通过 16/16，阶段二认证链路未回归。
+- `npm run verify:cart` 通过 17/17：商品卡片直达详情、SKU 联动、售罄规格禁用、未登录加购跳登录、登录后加购、刷新后角标恢复、购物车金额、数量修改、取消 / 全选、结算预览、删除、1440 / 390 布局与无横向溢出。
+- 真实接口边界已手工核对：未登录 `/api/cart` 返回 401；同 SKU 累加；数量 100 返回 `37007`；售罄 SKU 返回 `37005`；全部取消勾选后结算返回 `37006`；删除后列表与角标同步。
+- SKU 选择器以 `specJson` 分组渲染；无合法规格 JSON 时退化为按 SKU 名称选择。`available = null` 只提示库存待确认，不误判售罄。

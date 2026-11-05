@@ -31,7 +31,7 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
     </RouterLink>
     <RouterLink
       class="floating-toolbar__item"
-      :to="{ name: 'feature', params: { feature: 'cart' } }"
+      :to="userStore.isLoggedIn ? { name: 'cart' } : { name: 'login', query: { redirect: '/cart' } }"
       aria-label="购物车"
     >
       <AppIcon name="cart" :size="19" />

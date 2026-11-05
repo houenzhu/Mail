@@ -35,6 +35,18 @@ const router = createRouter({
       meta: { title: '注册', public: true, guestOnly: true },
     },
     {
+      path: '/product/:id',
+      name: 'product-detail',
+      component: () => import('@/views/ProductDetailView.vue'),
+      meta: { title: '商品详情', public: true },
+    },
+    {
+      path: '/cart',
+      name: 'cart',
+      component: () => import('@/views/CartView.vue'),
+      meta: { title: '购物车', requiresAuth: true },
+    },
+    {
       path: '/account',
       name: 'account',
       component: () => import('@/views/AccountView.vue'),

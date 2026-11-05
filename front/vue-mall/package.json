@@ -1,6 +1,6 @@
 {
   "name": "vue-mall",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,7 +10,8 @@
     "verify": "node scripts/verify-home.mjs",
     "verify:probe": "node scripts/probe.mjs",
     "verify:shot": "node scripts/shot.mjs",
-    "verify:auth": "node scripts/verify-auth.mjs"
+    "verify:auth": "node scripts/verify-auth.mjs",
+    "verify:cart": "node scripts/verify-cart.mjs"
   },
   "dependencies": {
     "pinia": "^4.0.3",

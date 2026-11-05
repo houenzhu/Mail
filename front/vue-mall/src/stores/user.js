@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import * as authApi from '@/api/auth'
+import { useCartStore } from '@/stores/cart'
 import {
   clearTokens,
   getAccessToken,
@@ -94,16 +95,19 @@ export const useUserStore = defineStore('user', () => {
   }
 
   async function logout() {
+    const cartStore = useCartStore()
     try {
       if (accessToken.value) await authApi.logout()
     } catch {
       // 注销失败也要清本地态，避免用户卡在“看起来还登录着”
     } finally {
       reset()
+      cartStore.reset()
     }
   }
 
   function reset() {
+    useCartStore().reset()
     clearTokens()
     accessToken.value = ''
     refreshToken.value = ''
@@ -112,6 +116,7 @@ export const useUserStore = defineStore('user', () => {
 
   function handleUnauthorized(message) {
     reset()
+    useCartStore().reset()
     unauthorizedMessage.value = message || '登录已过期，请重新登录'
   }
 
@@ -122,7 +127,10 @@ export const useUserStore = defineStore('user', () => {
   onTokenStorageChange(({ accessToken: nextAccess, refreshToken: nextRefresh }) => {
     accessToken.value = nextAccess
     refreshToken.value = nextRefresh
-    if (!nextAccess) profile.value = null
+    if (!nextAccess) {
+      profile.value = null
+      useCartStore().reset()
+    }
   })
 
   return {

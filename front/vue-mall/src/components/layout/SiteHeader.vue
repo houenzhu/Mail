@@ -5,6 +5,7 @@ import AppIcon from '@/components/common/AppIcon.vue'
 import SearchBar from './SearchBar.vue'
 import { headerShortcuts } from '@/data/homeContent'
 import { useUserStore } from '@/stores/user'
+import { useCartStore } from '@/stores/cart'
 
 defineProps({
   compact: { type: Boolean, default: false },
@@ -12,6 +13,7 @@ defineProps({
 
 const route = useRoute()
 const userStore = useUserStore()
+const cartStore = useCartStore()
 const open = ref(false)
 const accountMenuOpen = ref(false)
 const accountMenuRef = ref(null)
@@ -19,6 +21,15 @@ const accountTriggerRef = ref(null)
 
 const isLoggedIn = computed(() => userStore.isLoggedIn)
 const displayName = computed(() => userStore.displayName)
+const cartBadge = computed(() => {
+  const count = cartStore.totalQuantity
+  return count > 99 ? '99+' : String(count)
+})
+const cartTarget = computed(() => (
+  isLoggedIn.value
+    ? { name: 'cart' }
+    : { name: 'login', query: { redirect: '/cart' } }
+))
 
 const shortcuts = computed(() =>
   headerShortcuts.map((item) => {
@@ -30,6 +41,7 @@ const shortcuts = computed(() =>
 )
 
 function targetFor(item) {
+  if (item.feature === 'cart') return cartTarget.value
   if (item.feature === 'orders' && isLoggedIn.value) {
     return { name: 'account' }
   }
@@ -65,6 +77,14 @@ watch(
     open.value = false
     accountMenuOpen.value = false
   },
+)
+
+watch(
+  () => [isLoggedIn.value, cartStore.loaded],
+  ([loggedIn, loaded]) => {
+    if (loggedIn && !loaded) cartStore.load().catch(() => {})
+  },
+  { immediate: true },
 )
 
 onMounted(() => {
@@ -125,7 +145,6 @@ onBeforeUnmount(() => {
             :to="targetFor(item)"
           >
             {{ item.label }}
-            <AppIcon v-if="item.feature === 'cart'" name="chevron-down" :size="12" />
           </RouterLink>
         </div>
       </div>
@@ -202,11 +221,11 @@ onBeforeUnmount(() => {
           </RouterLink>
           <RouterLink
             class="header-action header-action--cart"
-            :to="{ name: 'feature', params: { feature: 'cart' } }"
+            :to="cartTarget"
           >
             <AppIcon name="cart" :size="20" />
             <span>购物车</span>
-            <em class="header-action__badge">0</em>
+            <em v-if="cartStore.totalQuantity" class="header-action__badge">{{ cartBadge }}</em>
           </RouterLink>
           <button
             class="header-menu-toggle"
