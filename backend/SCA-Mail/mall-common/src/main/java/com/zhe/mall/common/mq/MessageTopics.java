@@ -17,6 +17,16 @@ public final class MessageTopics {
     /** 支付成功；驱动订单状态流转（本项用于替换支付侧对订单的同步 Feign 通知）。 */
     public static final String PAY_SUCCESS = "TOPIC_PAY_SUCCESS";
 
+    /**
+     * 订单已支付（商品侧销量回写，G-12）。
+     *
+     * <p>与 {@link #PAY_SUCCESS} 分开而不是复用：支付事件由 mall-pay 生产、只带 paymentNo 级别的字段，
+     * 而销量回写必须依赖<b>订单明细</b>（product_id + qty），订单明细只在 mall-order 的库里。
+     * 若让商品服务回查订单，就会把"消费事件"变成同步依赖；因此由订单侧在支付状态 CAS 成功后
+     * 发布本事件，商品侧只需按明细累加。
+     */
+    public static final String ORDER_PAID = "TOPIC_ORDER_PAID";
+
     /** 订单取消/关单；释放券与库存。 */
     public static final String ORDER_CANCELLED = "TOPIC_ORDER_CANCELLED";
 
@@ -33,6 +43,9 @@ public final class MessageTopics {
     public static final String TAG_TIMEOUT = "TIMEOUT";
 
     public static final String TAG_PAID = "PAID";
+
+    /** 订单已支付（销量回写），与本文件 {@link #TAG_PAID} 区分：tag 名带 ORDER 前缀避免与支付事件混淆。 */
+    public static final String TAG_ORDER_PAID = "ORDER_PAID";
 
     public static final String TAG_CANCELLED = "CANCELLED";
 

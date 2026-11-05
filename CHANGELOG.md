@@ -6,6 +6,31 @@
 
 暂无。
 
+## [0.10.0] - 2026-11-05
+
+- 销量口径闭环：G-12 累计销量回写 + G-13 后台 30 日销量。
+  - 订单支付回调 CAS 成功、状态日志写入后，在**同一事务**内通过 Outbox 登记
+    `TOPIC_ORDER_PAID`（幂等键 `orderNo`）；事件带 `paidAt` 与订单明细
+    `SalesItem(productId, skuId, quantity)`，`paidAt` 与库内 `orders.paid_at` 取自同一变量。
+  - `mall-product` 新增消费方 `order-paid-sales`：同商品多 SKU 先合并数量，再按 `product_id`
+    累加 `product.sales`；认领表 `product_sales_record(order_no, product_id)` 唯一键保证
+    重复投递不重复加；商品不存在/已删除时回滚认领并抛错，交给 MQ 重投；累加后清理详情缓存。
+  - 新增 `POST /api/order/admin/product-sales`（`mall-order`）：按 `orders.paid_at` 归窗，
+    状态限 `20/30/40/60`，天数收敛到 1~90（默认 30），时区固定 `Asia/Shanghai`。
+  - 后台商品分页 `sales30d` 改为真实 30 日销量：整页 ID 一次批量查询，不做 N+1；
+    订单服务不可用时该列留空并 WARN，不影响商品列表其余字段。
+  - 口径边界：销量按「支付成功即计入」，退款暂不回减；30 日销量与累计销量分开展示。
+- 数据库：新增 `sql/14_product_sales.sql`，建 `mall_product.product_sales_record` 与
+  `mall_product.consumed_message`（消费幂等表）。
+- 验证：`ProductSalesServiceTest` 4 项、`AdminProductServiceTest` 30 日批量/降级用例、
+  `OrderMapperXmlTest` SQL 校验全部通过；目标模块 `mvn test` 全绿；
+  前端 `npm run build` 通过；真实链路 `scripts/e2e-sales.ps1` 8/8
+  （支付回写、认领唯一、重复回调不加量、30 日接口与 SQL 对齐、商品列表对齐、匿名 401、买家 403）。
+- 环境备注：本机 RocketMQ Broker 曾以默认 `C:\Users\<user>\store` 启动，C 盘占用超过
+  `diskMaxUsedSpaceRatio` 后所有写入被拒（`message store is not writeable`）。启动时必须带
+  `-c E:\rocketmq\conf\broker.conf`；JDK 21 在本机创建 selector 会触发 AF_UNIX 回环异常，
+  Broker 改用 JDK 8 启动可正常工作。
+
 ## [0.9.0] - 2026-11-05
 
 - 商品图上传（G-09）落地：`POST /api/admin/upload` 直传阿里云 OSS。

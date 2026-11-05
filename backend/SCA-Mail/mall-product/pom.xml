@@ -66,6 +66,12 @@
             <groupId>com.alibaba.cloud</groupId>
             <artifactId>spring-cloud-starter-alibaba-nacos-config</artifactId>
         </dependency>
+        <!-- RocketMQ：消费 TOPIC_ORDER_PAID 累加累计销量（G-12）。
+             mall-common 里该依赖是 optional，必须由本服务显式声明才会生效。 -->
+        <dependency>
+            <groupId>org.apache.rocketmq</groupId>
+            <artifactId>rocketmq-client</artifactId>
+        </dependency>
         <!-- 测试：SKU 差量更新与目录删除拦截是最容易写错的业务规则，必须有可回归的单测 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

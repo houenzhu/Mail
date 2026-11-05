@@ -32,4 +32,27 @@
         </foreach>
         group by order_no
     </select>
+
+    <!--
+      G-13：商品近 N 日销量。
+
+      两表都在 mall_order 库内，可以 JOIN；按 paid_at 归入时间窗而不是 order_item.created_at，
+      因为"下单"不等于"成交"。状态只取成交口径（20/30/40/60），已退款(70)、取消(50)、待支付(10) 不算。
+      一次性按 productIds 批量聚合，供 BFF 整页补齐，避免逐商品查询（N+1）。
+    -->
+    <select id="selectProductSalesBetween" resultType="com.zhe.mall.api.dto.AdminProductSalesStat">
+        select i.product_id as productId, coalesce(sum(i.qty), 0) as quantity
+        from order_item i
+        join orders o on o.order_no = i.order_no
+        where o.deleted = 0
+          and o.status in (20, 30, 40, 60)
+          and o.paid_at is not null
+          and o.paid_at &gt;= #{start}
+          and o.paid_at &lt; #{end}
+          and i.product_id in
+        <foreach collection="productIds" item="productId" open="(" separator="," close=")">
+            #{productId}
+        </foreach>
+        group by i.product_id
+    </select>
 </mapper>

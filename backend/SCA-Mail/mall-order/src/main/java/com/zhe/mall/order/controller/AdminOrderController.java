@@ -6,12 +6,14 @@ import com.zhe.mall.api.dto.AdminOrderRow;
 import com.zhe.mall.api.dto.AdminShipRequest;
 import com.zhe.mall.api.dto.AdminDashboardOverview;
 import com.zhe.mall.api.dto.AdminDashboardTrendPoint;
+import com.zhe.mall.api.dto.AdminProductSalesStat;
 import com.zhe.mall.common.auth.RequireStaff;
 import com.zhe.mall.common.auth.UserRole;
 import com.zhe.mall.common.result.PageResult;
 import com.zhe.mall.common.result.Result;
 import com.zhe.mall.order.service.AdminOrderQueryService;
 import com.zhe.mall.order.service.AdminOrderDashboardService;
+import com.zhe.mall.order.service.AdminProductSalesQueryService;
 import com.zhe.mall.order.service.OrderService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -42,14 +44,18 @@ public class AdminOrderController {
 
     private final AdminOrderDashboardService adminOrderDashboardService;
 
+    private final AdminProductSalesQueryService adminProductSalesQueryService;
+
     private final OrderService orderService;
 
     public AdminOrderController(AdminOrderQueryService adminOrderQueryService,
                                 AdminOrderDashboardService adminOrderDashboardService,
-                                OrderService orderService) {
+                                OrderService orderService,
+                                AdminProductSalesQueryService adminProductSalesQueryService) {
         this.adminOrderQueryService = adminOrderQueryService;
         this.adminOrderDashboardService = adminOrderDashboardService;
         this.orderService = orderService;
+        this.adminProductSalesQueryService = adminProductSalesQueryService;
     }
 
     /*
@@ -69,6 +75,21 @@ public class AdminOrderController {
     public Result<List<AdminDashboardTrendPoint>> dashboardTrend(
             @RequestParam(value = "days", required = false) Integer days) {
         return Result.success(adminOrderDashboardService.trend(days == null ? 7 : days));
+    }
+
+    /**
+     * 批量查询商品近 N 日销量（G-13）。
+     *
+     * <p>用 POST + body 传商品 ID 列表：整页商品可能几十个，query 串容易超长；
+     * 与商品分页、SKU 批量查询保持同一风格。
+     *
+     * @param days 天数，服务端收敛到 1~90，默认 30
+     */
+    @PostMapping("/product-sales")
+    public Result<List<AdminProductSalesStat>> productSales(
+            @RequestBody(required = false) List<Long> productIds,
+            @RequestParam(value = "days", required = false) Integer days) {
+        return Result.success(adminProductSalesQueryService.sales(productIds, days));
     }
 
     /** 后台订单分页：全量订单，支持订单号 / 买家 / 状态 / 创建时间区间筛选。 */

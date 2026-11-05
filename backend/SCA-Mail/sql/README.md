@@ -17,6 +17,7 @@
 | `11_order_shipping.sql` | `mall_order` | 为订单增加物流公司、物流单号、发货时间与发货人字段（UC-ORDER-07，可重复执行） |
 | `12_order_completed.sql` | `mall_order` | 为订单增加完成时间与索引（UC-ORDER-06 确认收货，可重复执行） |
 | `13_refund_audit.sql` | `mall_pay` | 为退款单增加审核人/审核时间字段（退款审核流，可重复执行） |
+| `14_product_sales.sql` | `mall_product` | `product_sales_record`（销量回写认领，唯一键 `order_no + product_id`）、`consumed_message`（MQ 消费幂等，主键 `msg_id`） |
 
 ## 执行方式
 
@@ -65,6 +66,9 @@ powershell -ExecutionPolicy Bypass -File .\scripts\init-db.ps1 -MysqlHome 'D:\my
 - `local_message.delay_level`：RocketMQ 延时级别，`0` 立即发送，`16` = 30 分钟（超时关单，见 19.6 `TOPIC_ORDER_TIMEOUT`）。
 - `consumed_message.msg_id` 为主键：先插入成功者才执行业务，重复投递直接跳过；业务唯一索引（`uk_user_request` / `uk_order_sku_type` 等）是第二道防线。
 - 幂等键口径（19.6）：`TOPIC_ORDER_CREATED` / `TOPIC_ORDER_TIMEOUT` / `TOPIC_ORDER_CANCELLED` 用 `orderNo`；`TOPIC_PAY_SUCCESS` 用 `paymentNo`；`TOPIC_STOCK_ROLLBACK` 用 `orderNo + type`。
+- `TOPIC_ORDER_PAID`（0.10.0）：Outbox 幂等键用 `orderNo`；`mall-product` 另以
+  `product_sales_record(order_no, product_id)` 唯一键做二次幂等，重复投递直接跳过、不重复加销量。
+  `mall_product.consumed_message` 与库存/订单侧同构，记录消费结果以便重投排查。
 
 ## 待补充
 

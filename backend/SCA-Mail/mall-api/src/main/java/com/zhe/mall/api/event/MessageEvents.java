@@ -65,6 +65,30 @@ public final class MessageEvents {
     }
 
     /**
+     * {@code TOPIC_ORDER_PAID}（tag=ORDER_PAID，key=orderNo，幂等键 orderNo）。
+     *
+     * <p>消费方：product（累计销量回写，G-12）。
+     *
+     * <p>为什么由订单侧而不是支付侧生产：销量按 {@code product_id} 累加，而支付事件只带
+     * paymentNo/orderNo；订单明细（product_id、qty）只在 {@code mall_order} 库，
+     * 由订单侧在支付状态 CAS 成功后同事务发事件，商品侧不必回查订单。
+     *
+     * <p>兼容口径（19.6）：字段只增不改；{@code items} 使用 {@link Item}，
+     * 其中 {@code price} 为下单时单价，销量统计只用 {@code skuId}/{@code quantity}。
+     * 但销量按商品累加还需要 {@code productId}，因此在 Item 之外新增 {@link SalesItem}。
+     */
+    public record OrderPaidEvent(
+            String orderNo,
+            Long userId,
+            String paidAt,
+            List<SalesItem> items) {
+    }
+
+    /** 销量回写明细：商品维度累加所需的最小字段。 */
+    public record SalesItem(Long productId, Long skuId, Integer quantity) {
+    }
+
+    /**
      * {@code TOPIC_ORDER_CANCELLED}（tag=CANCELLED，key=orderNo）。
      *
      * <p>消费方：promotion（释放券）、inventory（释放库存）。

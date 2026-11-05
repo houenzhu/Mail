@@ -5,6 +5,7 @@ import com.zhe.mall.api.dto.AdminDashboardOverview;
 import com.zhe.mall.api.dto.AdminDashboardTrendPoint;
 import com.zhe.mall.api.dto.AdminOrderPageQuery;
 import com.zhe.mall.api.dto.AdminOrderRow;
+import com.zhe.mall.api.dto.AdminProductSalesStat;
 import com.zhe.mall.api.dto.AdminShipRequest;
 import com.zhe.mall.api.dto.OrderPayView;
 import com.zhe.mall.api.dto.PayCallbackRequest;
@@ -88,5 +89,15 @@ public interface OrderApi {
      */
     @GetMapping("/admin/dashboard/trend")
     Result<List<AdminDashboardTrendPoint>> adminDashboardTrend(@RequestParam("days") Integer days);
+
+    /**
+     * 批量查询商品近 N 日销量（G-13）。
+     *
+     * @param productIds 商品 ID 列表；为空时下游直接返回空列表
+     * @param days       天数，服务端收敛到 1~90，默认 30
+     */
+    @PostMapping("/admin/product-sales")
+    Result<List<AdminProductSalesStat>> adminProductSales(@RequestBody List<Long> productIds,
+                                                          @RequestParam(value = "days", required = false) Integer days);
 }
 

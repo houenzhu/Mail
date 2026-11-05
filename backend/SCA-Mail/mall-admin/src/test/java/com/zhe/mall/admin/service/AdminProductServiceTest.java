@@ -5,6 +5,8 @@ import com.zhe.mall.admin.dto.AdminProductRow;
 import com.zhe.mall.admin.dto.AdminInventoryRecordPage;
 import com.zhe.mall.api.InventoryApi;
 import com.zhe.mall.api.ProductApi;
+import com.zhe.mall.api.OrderApi;
+import com.zhe.mall.api.dto.AdminProductSalesStat;
 import com.zhe.mall.api.dto.AdminProductPageQuery;
 import com.zhe.mall.api.dto.AdminProductStatusCounts;
 import com.zhe.mall.api.dto.AdjustStockRequest;
@@ -62,7 +64,7 @@ class AdminProductServiceTest {
     void aggregatesInventorySkuAndDictionaryFields() {
         StubProductApi productApi = new StubProductApi();
         StubInventoryApi inventoryApi = new StubInventoryApi();
-        AdminProductService service = new AdminProductService(productApi, inventoryApi);
+        AdminProductService service = new AdminProductService(productApi, inventoryApi, new StubOrderApi());
 
         AdminProductPage page = service.page(new AdminProductPageQuery(null, null, null, null, null, 0, 1, 10));
 
@@ -77,12 +79,14 @@ class AdminProductServiceTest {
         // SKU 1001(available 93) + 1002(available 49) = 142
         assertThat(first.stock()).isEqualTo(142);
         assertThat(first.sales()).isEqualTo(120);
+        assertThat(first.sales30d()).isEqualTo(7);
         assertThat(first.createdAt()).isEqualTo("2026-09-01 10:00:00");
 
         // 第二个商品只有 1 个 SKU，库存 7
         AdminProductRow second = page.records().get(1);
         assertThat(second.skuCount()).isEqualTo(1);
         assertThat(second.stock()).isEqualTo(7);
+        assertThat(second.sales30d()).isNull();
         // brandId=0 表示无品牌，不应拿去字典里查出名字
         assertThat(second.brandId()).isNull();
         assertThat(second.brandName()).isNull();
@@ -93,7 +97,7 @@ class AdminProductServiceTest {
     void usesBatchCallsInsteadOfPerRowQueries() {
         StubProductApi productApi = new StubProductApi();
         StubInventoryApi inventoryApi = new StubInventoryApi();
-        AdminProductService service = new AdminProductService(productApi, inventoryApi);
+        AdminProductService service = new AdminProductService(productApi, inventoryApi, new StubOrderApi());
 
         service.page(new AdminProductPageQuery(null, null, null, null, null, 0, 1, 10));
 
@@ -107,12 +111,41 @@ class AdminProductServiceTest {
     }
 
     @Test
+    @DisplayName("30 日销量：整页只发一次订单批量调用")
+    void queriesSales30dInOneBatch() {
+        StubProductApi productApi = new StubProductApi();
+        StubOrderApi orderApi = new StubOrderApi();
+        AdminProductService service = new AdminProductService(productApi, new StubInventoryApi(), orderApi);
+
+        service.page(new AdminProductPageQuery(null, null, null, null, null, 0, 1, 10));
+
+        assertThat(orderApi.salesCalls).isEqualTo(1);
+        assertThat(orderApi.lastProductIds).containsExactly(1L, 2L);
+        assertThat(orderApi.lastDays).isEqualTo(30);
+    }
+
+    @Test
+    @DisplayName("订单服务不可用：30 日销量降级为空，商品列表仍返回")
+    void degradesWhenSales30dUnavailable() {
+        StubProductApi productApi = new StubProductApi();
+        StubOrderApi orderApi = new StubOrderApi();
+        orderApi.failSales = true;
+        AdminProductService service = new AdminProductService(productApi, new StubInventoryApi(), orderApi);
+
+        AdminProductPage page = service.page(new AdminProductPageQuery(null, null, null, null, null, 0, 1, 10));
+
+        assertThat(page.records()).hasSize(2);
+        assertThat(page.records()).allSatisfy(row -> assertThat(row.sales30d()).isNull());
+        assertThat(page.records().get(0).sales()).isEqualTo(120);
+    }
+
+    @Test
     @DisplayName("库存服务不可用：降级为空库存，但商品列表仍然返回（不整页失败）")
     void degradesWhenInventoryUnavailable() {
         StubProductApi productApi = new StubProductApi();
         StubInventoryApi inventoryApi = new StubInventoryApi();
         inventoryApi.failBatch = true;
-        AdminProductService service = new AdminProductService(productApi, inventoryApi);
+        AdminProductService service = new AdminProductService(productApi, inventoryApi, new StubOrderApi());
 
         AdminProductPage page = service.page(new AdminProductPageQuery(null, null, null, null, null, 0, 1, 10));
 
@@ -127,7 +160,7 @@ class AdminProductServiceTest {
     void propagatesFailureOfProductPage() {
         StubProductApi productApi = new StubProductApi();
         productApi.failPage = true;
-        AdminProductService service = new AdminProductService(productApi, new StubInventoryApi());
+        AdminProductService service = new AdminProductService(productApi, new StubInventoryApi(), new StubOrderApi());
 
         assertThatThrownBy(() -> service.page(new AdminProductPageQuery(null, null, null, null, null, 0, 1, 10)))
                 .isInstanceOf(BusinessException.class)
@@ -140,7 +173,7 @@ class AdminProductServiceTest {
         StubProductApi productApi = new StubProductApi();
         productApi.emptyPage = true;
         StubInventoryApi inventoryApi = new StubInventoryApi();
-        AdminProductService service = new AdminProductService(productApi, inventoryApi);
+        AdminProductService service = new AdminProductService(productApi, inventoryApi, new StubOrderApi());
 
         AdminProductPage page = service.page(new AdminProductPageQuery(null, null, null, null, null, 0, 1, 10));
 
@@ -157,7 +190,7 @@ class AdminProductServiceTest {
         StubInventoryApi inventoryApi = new StubInventoryApi();
         inventoryApi.recordPage = new InventoryRecordPage(1, 1, 10, List.of(
                 new InventoryRecordDTO(10L, 1001L, "req-1", 5, 3, 1, "补货", 9001L, "operator01", null)));
-        AdminProductService service = new AdminProductService(productApi, inventoryApi);
+        AdminProductService service = new AdminProductService(productApi, inventoryApi, new StubOrderApi());
 
         AdminInventoryRecordPage page = service.inventoryRecords(new InventoryRecordPageQuery(null, 5, 1, 10));
 
@@ -368,6 +401,71 @@ class AdminProductServiceTest {
 
         @Override
         public Result<com.zhe.mall.api.dto.AdminInventoryStat> adminStat() {
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    /** 30 日销量桩：默认商品 1 返回 7 件、商品 2 无数据，用于验证"缺失即 null"。 */
+    private static class StubOrderApi implements OrderApi {
+
+        int salesCalls;
+        List<Long> lastProductIds = new ArrayList<>();
+        Integer lastDays;
+        boolean failSales;
+
+        @Override
+        public Result<List<AdminProductSalesStat>> adminProductSales(List<Long> productIds, Integer days) {
+            salesCalls++;
+            lastProductIds = productIds == null ? List.of() : List.copyOf(productIds);
+            lastDays = days;
+            if (failSales) {
+                return Result.failure(ResultCode.DOWNSTREAM_UNAVAILABLE, "mall-order 不可用");
+            }
+            return Result.success(List.of(new AdminProductSalesStat(1L, 7)));
+        }
+
+        @Override
+        public Result<com.zhe.mall.api.dto.OrderPayView> getPayView(String orderNo) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Result<com.zhe.mall.api.dto.OrderPayView> payCallback(String orderNo, com.zhe.mall.api.dto.PayCallbackRequest request) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Result<com.zhe.mall.api.dto.OrderPayView> refundCallback(String orderNo, com.zhe.mall.api.dto.RefundCallbackRequest request) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Result<PageResult<com.zhe.mall.api.dto.AdminOrderRow>> adminPage(com.zhe.mall.api.dto.AdminOrderPageQuery query) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Result<com.zhe.mall.api.dto.AdminOrderDetail> adminDetail(String orderNo) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Result<com.zhe.mall.api.dto.AdminOrderDetail> adminShip(String orderNo, com.zhe.mall.api.dto.AdminShipRequest request) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Result<com.zhe.mall.api.dto.AdminOrderDetail> adminConfirm(String orderNo) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Result<com.zhe.mall.api.dto.AdminDashboardOverview> adminDashboardOverview() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Result<List<com.zhe.mall.api.dto.AdminDashboardTrendPoint>> adminDashboardTrend(Integer days) {
             throw new UnsupportedOperationException();
         }
     }

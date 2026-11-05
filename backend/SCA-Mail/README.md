@@ -85,7 +85,7 @@
 | `mall.mq.enabled` / `name-server`（order / pay / inventory） | `true` / `127.0.0.1:9876` | `MALL_MQ_ENABLED` / `ROCKETMQ_NAME_SERVER`（见需求文档第 29 章） |
 | `mall.mq.producer-enabled` | `true`（order / pay）；**`false`（inventory，只消费不生产）** | 无（按服务写死，见 29.2 的按需装配口径） |
 | `mall.mq.outbox.*`（order / pay） | 补发周期 30s、首次延迟 15s、批量 200、最多重试 3 次（退避 1s/5s/30s） | `MALL_MQ_OUTBOX_INTERVAL_MS` 等（见需求文档 20.3 / 29.4） |
-| `mall.mq.consumer.enabled` | `true`（order：消费 `TOPIC_PAY_SUCCESS`；inventory：消费 `TOPIC_STOCK_ROLLBACK`）；`false`（pay） | `MALL_MQ_CONSUMER_ENABLED`（见需求文档 29.4） |
+| `mall.mq.consumer.enabled` | `true`（order：消费 `TOPIC_PAY_SUCCESS`；inventory：消费 `TOPIC_STOCK_ROLLBACK`；product：消费 `TOPIC_ORDER_PAID`）；`false`（pay） | `MALL_MQ_CONSUMER_ENABLED`（见需求文档 29.4） |
 
 多环境隔离方式：在 Nacos 控制台创建 `dev` / `test` / `prod` 命名空间，启动时设置 `NACOS_NAMESPACE=dev` 即可。
 
@@ -151,8 +151,9 @@ powershell -ExecutionPolicy Bypass -File .\scripts\init-db.ps1
 | pay | POST | `/api/pay/callback/{channel}` | 渠道回调（网关白名单；验签 + 时间窗 + 防重放，见需求文档 28.6） |
 | pay | POST | `/api/pay/internal/sync/{paymentNo}` | 主动查询渠道并对齐（回调丢失兜底；内部令牌，**须直连服务**） |
 | pay | POST | `/api/pay/internal/reconcile/{bizDate}` | 手工触发对账，返回差异清单（内部令牌，**须直连服务**） |
-| admin | POST | `/api/admin/product/page` | **后台商品分页**（BFF 聚合 mall-product + mall-inventory：含库存、SKU 数、分类/品牌名；支持已删除态与按 ID 精确查） |
+| admin | POST | `/api/admin/product/page` | **后台商品分页**（BFF 聚合 mall-product + mall-inventory + mall-order：含库存、SKU 数、分类/品牌名、真实 30 日销量 `sales30d`；支持已删除态与按 ID 精确查） |
 | admin | GET | `/api/admin/product/status-counts` | 后台商品列表的状态角标计数（全部 / 出售中 / 仓库中 / 已删除） |
+| order | POST | `/api/order/admin/product-sales?days=30` | 批量查询商品近 N 日销量（默认 30，收敛 1~90；按 `orders.paid_at` 归窗，状态限 20/30/40/60；BFF 商品分页调用） |
 | admin | GET | `/api/admin/product/sku?productId={id}` | 单商品 SKU 列表（编辑页回显） |
 | admin | GET | `/api/admin/product/{id}` | 商品详情 + 真实 SKU 列表（编辑页回显） |
 | admin | POST | `/api/admin/product` | 新增商品（下游 `@RequireStaff(OPERATOR)`） |
@@ -314,6 +315,6 @@ curl -X POST "http://127.0.0.1:8106/api/pay/internal/reconcile/2026-09-15" -H "X
 
 已可复现的主链路：注册 / 登录（Sa-Token 会话令牌）→ 浏览商品 → 创建订单（幂等，身份取自令牌）→ 扣减库存（防超卖）→ 支付回调 → 状态流转；取消与超时取消同样可复现。
 
-已交付：Redis 接入（商品详情缓存、分布式锁、下单幂等标记，见需求文档 27.8 的 23 条验证）；**mall-pay 已交付**（支付单 / 回调验签 / 主动查询兜底 / 全额退款 / 支付对账 + 3 个定时任务，E2E 18/18 见需求文档 28.11，脚本 `scripts/e2e-pay.ps1`）；**认证框架已迁移到 Sa-Token 1.46.0 并完成实测回归**（签发端 mall-auth + 校验端 mall-gateway；自研 JWT / 黑名单 / 刷新登记共 6 个文件删除，网关改用 SaReactorFilter 校验会话，注销与强制下线升级为"全端立即失效"）——改动清单、6 个实测踩坑、错误码映射与 23 条回归记录见需求文档 **21.9 / 27.10 / ADR-025 / ADR-026**；**RocketMQ 已接入**（统一事件信封 + 本地消息表 Outbox + 消费幂等 + 死信；`TOPIC_ORDER_CREATED` / `ORDER_TIMEOUT`(延时 30min) / `STOCK_ROLLBACK` / `PAY_SUCCESS` 已生产，`mall-inventory` 消费库存回滚、**`mall-order` 消费支付成功**；**修掉了"支付成功但订单回调失败无补偿"与"取消后库存回滚失败只留日志"两个缺口**，并实测"停掉订单服务后支付回调 → 重启后订单由事件自愈到已支付"）——POC、逐文件清单、4 条踩坑与 12 条实测见需求文档 **第二十九章**。
+已交付：Redis 接入（商品详情缓存、分布式锁、下单幂等标记，见需求文档 27.8 的 23 条验证）；**mall-pay 已交付**（支付单 / 回调验签 / 主动查询兜底 / 全额退款 / 支付对账 + 3 个定时任务，E2E 18/18 见需求文档 28.11，脚本 `scripts/e2e-pay.ps1`）；**认证框架已迁移到 Sa-Token 1.46.0 并完成实测回归**（签发端 mall-auth + 校验端 mall-gateway；自研 JWT / 黑名单 / 刷新登记共 6 个文件删除，网关改用 SaReactorFilter 校验会话，注销与强制下线升级为"全端立即失效"）——改动清单、6 个实测踩坑、错误码映射与 23 条回归记录见需求文档 **21.9 / 27.10 / ADR-025 / ADR-026**；**RocketMQ 已接入**（统一事件信封 + 本地消息表 Outbox + 消费幂等 + 死信；`TOPIC_ORDER_CREATED` / `ORDER_TIMEOUT`(延时 30min) / `STOCK_ROLLBACK` / `PAY_SUCCESS` / `ORDER_PAID` 已生产，`mall-inventory` 消费库存回滚、**`mall-order` 消费支付成功**、**`mall-product` 消费支付成功回写销量**；**修掉了"支付成功但订单回调失败无补偿"与"取消后库存回滚失败只留日志"两个缺口**，并实测"停掉订单服务后支付回调 → 重启后订单由事件自愈到已支付"）——POC、逐文件清单、4 条踩坑与 12 条实测见需求文档 **第二十九章**。
 
 待推进：**第 8 项秒杀**（Redis Lua 预扣 + MQ 削峰 + Sentinel 限流）、Sentinel 限流降级、Seata POC、可观测性（网关 traceId、指标与告警）、单测与 CI、压测验收 —— 详见需求文档第二十五章与 26.10。Dubbo（订单→库存）与 ShardingSphere 分库分表待 Boot 4 兼容性 POC 后再定。

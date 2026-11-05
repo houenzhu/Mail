@@ -62,6 +62,15 @@ mall:
   auth:
     # 与网关、mall-auth 保持一致；未配置时服务端不采信任何身份头（fail-closed，见 21.2）
     internal-token: ${INTERNAL_TOKEN:}
+  # RocketMQ：只消费 TOPIC_ORDER_PAID 回写累计销量（G-12）。
+  # 本服务不生产消息，producer-enabled=false 避免白起 producer / Outbox 补发任务。
+  mq:
+    enabled: ${MALL_MQ_ENABLED:true}
+    name-server: ${ROCKETMQ_NAME_SERVER:127.0.0.1:9876}
+    producer-enabled: false
+    consumer:
+      enabled: ${MALL_MQ_CONSUMER_ENABLED:true}
+      max-reconsume-times: ${MALL_MQ_MAX_RECONSUME:3}
 
 logging:
   pattern:

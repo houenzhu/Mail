@@ -6,7 +6,9 @@ import com.zhe.mall.admin.dto.AdminProductRow;
 import com.zhe.mall.admin.dto.AdminInventoryRecordPage;
 import com.zhe.mall.admin.dto.AdminInventoryRecordRow;
 import com.zhe.mall.api.InventoryApi;
+import com.zhe.mall.api.OrderApi;
 import com.zhe.mall.api.ProductApi;
+import com.zhe.mall.api.dto.AdminProductSalesStat;
 import com.zhe.mall.api.dto.AdminProductPageQuery;
 import com.zhe.mall.api.dto.AdminProductStatusCounts;
 import com.zhe.mall.api.dto.AdjustStockRequest;
@@ -60,9 +62,12 @@ public class AdminProductService {
 
     private final InventoryApi inventoryApi;
 
-    public AdminProductService(ProductApi productApi, InventoryApi inventoryApi) {
+    private final OrderApi orderApi;
+
+    public AdminProductService(ProductApi productApi, InventoryApi inventoryApi, OrderApi orderApi) {
         this.productApi = productApi;
         this.inventoryApi = inventoryApi;
+        this.orderApi = orderApi;
     }
 
     public AdminProductPage page(AdminProductPageQuery query) {
@@ -76,6 +81,8 @@ public class AdminProductService {
         // 商品在 mall_product、库存在 mall_inventory，跨库不能 JOIN，只能由 BFF 合并（见计划文档 8.2）。
         Map<Long, List<SkuDTO>> productSkus = skusByProduct(products);
         Map<Long, Integer> stocks = stockByProduct(products, productSkus);
+        // 30 日销量在 mall_order 库，跨库不能 JOIN，只能由 BFF 一次批量补齐（G-13）。
+        Map<Long, Integer> sales30d = sales30dByProduct(products);
 
         List<AdminProductRow> records = products.stream()
                 .map(product -> {
@@ -96,10 +103,7 @@ public class AdminProductService {
                             skus.size(),
                             stocks.get(product.id()),
                             product.sales(),
-                            // 30 日销量需要按时间窗口聚合订单明细，订单在 mall_order（另一个库），
-                            // 需 mall-order 提供接口后补齐（见计划文档 G-13）。当前明确留空，
-                            // 不用累计销量冒充，避免给出错误口径。
-                            null,
+                            sales30d.get(product.id()),
                             product.createdAt(),
                             product.updatedAt());
                 })
@@ -338,6 +342,41 @@ public class AdminProductService {
     }
 
     /** 取 Result.data，业务失败转成异常（BFF 不掩盖下游的业务错误码）。 */
+    /**
+     * 30 日销量（G-13）：按整页商品 ID 一次批量查询，不做逐商品 N+1。
+     *
+     * <p>属于"锦上添花"的附加数据：订单服务不可用时只把该列留空并打 WARN，
+     * 不能因为销量拿不到就把整个商品列表打成错误页（与库存降级同一口径）。
+     */
+    private Map<Long, Integer> sales30dByProduct(List<ProductDTO> products) {
+        if (products.isEmpty()) {
+            return Map.of();
+        }
+        List<Long> productIds = products.stream()
+                .map(ProductDTO::id)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (productIds.isEmpty()) {
+            return Map.of();
+        }
+        try {
+            List<AdminProductSalesStat> stats = unwrap(orderApi.adminProductSales(productIds, 30), "查询 30 日销量");
+            Map<Long, Integer> result = new HashMap<>();
+            if (stats != null) {
+                for (AdminProductSalesStat stat : stats) {
+                    if (stat != null && stat.productId() != null && stat.quantity() != null) {
+                        result.merge(stat.productId(), stat.quantity(), Integer::sum);
+                    }
+                }
+            }
+            return result;
+        } catch (RuntimeException e) {
+            log.warn("查询 30 日销量失败，商品列表的该列将为空: {}", e.getMessage());
+            return Map.of();
+        }
+    }
+
     private <T> T unwrap(Result<T> result, String action) {
         if (result == null || result.code() != ResultCode.SUCCESS.getCode()) {
             String message = result == null ? "下游无响应" : result.message();

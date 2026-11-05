@@ -64,8 +64,8 @@
 | 主图缩略图 | `product.main_image` | ✅ 有；空值使用占位展示 |
 | 价格 | `product.price_min` / `price_max` | `AdminProductRow` 返回价格区间 |
 | 库存 | `inventory.available`（`mall-inventory`，独立库） | ✅ BFF 聚合商品库存；调整写入幂等流水，支持流水分页 |
-| 累计销量 | `product.sales` | 字段返回，但缺可靠写入方，展示值不能视为真实销量 |
-| 30 日销量 | — | ❌ 无。需从 `mall_order.order_item` 按 `created_at` 聚合（跨库，必须走接口） |
+| 累计销量 | `product.sales` | ✅ 0.10.0 起由支付成功事件按订单明细累加（重复消息幂等跳过） |
+| 30 日销量 | `mall_order.order_item` 实时聚合 | ✅ 0.10.0 起按 `orders.paid_at` 归窗，状态限 20/30/40/60；商品分页批量补齐 |
 | 质量分（基础分/扶优分） | — | ❌ 无此概念。**建议不做**，替换为「库存健康度」等有数据支撑的列 |
 | 创建时间 / 发布时间 | `product.created_at` / `updated_at` | 商品管理 BFF 已返回创建/更新时间 |
 | 操作（编辑 / 删除 / 上下架） | `/api/admin/product/**` | 商品新增、编辑、逻辑删除及上下架已落地；读取授权仍需补齐 |
@@ -100,8 +100,8 @@
 
 | 编号 | 缺口 | 说明 | 优先级 |
 | :--- | :--- | :--- | :--- |
-| G-12 | `product.sales` 无写入方 | 建表有字段、种子值非 0，但下单成功后**没有任何代码回写**。若直接展示会造成"销量永远不变"的假象 | P1 |
-| G-13 | 无 30 日销量口径 | 需跨库聚合 `mall_order.order_item`，只能由 `mall-admin` 或 `mall-order` 提供接口 | P2 |
+| G-12 | `product.sales` 写入方 | ✅ 0.10.0 已闭环：支付成功事件 `TOPIC_ORDER_PAID` 由 `mall-product` 消费并累加，认领表防重 | P1 |
+| G-13 | 30 日销量口径 | ✅ 0.10.0 已闭环：`mall-order` 提供 `POST /api/order/admin/product-sales`，按 `paid_at` 归窗 | P2 |
 | G-14 | 商品无审核/草稿态 | 截图中的"草稿/违规"态无字段支撑 | P2（本期不做） |
 | G-15 | `mall_user.user_address` 未建表 | 影响收货地址管理，属第四阶段，后台本期不涉及 | P2 |
 
@@ -360,14 +360,17 @@ response => {
 
 **结论：走 A**，需要 `mall-inventory` 提供**批量按 skuId 列表查询**的接口（当前只有单条 `GET /api/inventory/{skuId}`）。这是 G-06 的具体形态。
 
-### 8.3 销量列的真实性
+### 8.3 销量列的真实性（0.10.0 已闭环）
 
-`product.sales` **当前没有任何写入方**（G-12）。若直接展示，运营会看到永远不变的数字。两个选择：
-
-- **M2 先展示**并在文档/页面上标注"累计销量（历史数据）"，同时排期做 G-12 回写；
-- 或用"已支付订单数"实时聚合替代（成本更高）。
-
-**建议**：M2 照常展示 + 同里程碑内完成 G-12（支付成功 MQ 事件异步累加 `sales`），避免上线一个会撒谎的列。
+- **累计销量（G-12）**：支付回调 CAS 成功、订单 10 → 20 后，在**同一事务**内用 Outbox 写入
+  `TOPIC_ORDER_PAID`；`mall-product` 消费后按 `product_id` 合并数量并累加 `product.sales`。
+  认领表 `product_sales_record(order_no, product_id)` 唯一键保证同一订单重复投递不会重复加。
+- **30 日销量（G-13）**：`mall-order` 按 `orders.paid_at` 落在「今天往前 29 天 00:00」到
+  「明天 00:00」（`Asia/Shanghai`），状态只取 `20/30/40/60`；退款 70、取消 50、待支付 10 不计。
+  BFF 商品分页按整页 ID **一次批量**查询，不做 N+1；订单服务不可用时该列留空并 WARN，
+  不影响商品列表其余字段。
+- **口径边界**：销量按「支付成功即计入」，退款暂不回减。展示文案为「累计销量」与「30 日销量」，
+  不把两者混用。
 
 ### 8.4 发布商品（`/product/create`）
 
@@ -421,14 +424,14 @@ response => {
 
 ### M2 商品管理（样板页）★
 
-> **状态：商品列表主流程已完成。** BFF 分页、状态角标、SKU/库存聚合和商品写接口已落地；`product.sales` 与 30 日销量仍没有可靠口径。
+> **状态：商品列表主流程已完成（0.10.0 起销量口径闭环）。** BFF 分页、状态角标、SKU/库存聚合、商品写接口、累计销量回写与 30 日销量均已落地。
 
 - [x] **后端配套**：`POST /api/admin/product/page`（G-02，BFF 聚合商品与库存信息）
 - [x] `我的商品` 列表页：状态 Tab、筛选栏、表格、分页、行操作
 - [x] 上下架（含二次确认与失败提示）
-- [ ] G-12（`product.sales` 回写）——避免上线一个永远不变的销量列
+- [x] G-12（`product.sales` 回写）+ G-13（30 日销量）——0.10.0 已闭环
 - [x] `useTable` / `useDict` / `usePermission` 三个 composable 沉淀
-- **当前验收口径**：商品分页、库存汇总、状态角标与上下架已接 BFF；销量缺少可靠写入方，不能宣称与真实销售数据一致。管理读取已由 BFF 与下游双层 staff 校验，网关公开商品白名单不覆盖管理路径。
+- **当前验收口径**：商品分页、库存汇总、状态角标、上下架、累计销量与 30 日销量均已接真实数据；E2E `scripts/e2e-sales.ps1` 8/8 覆盖支付回写、幂等、30 日对齐与鉴权边界。管理读取已由 BFF 与下游双层 staff 校验，网关公开商品白名单不覆盖管理路径。
 
 ### M3 商品维护与库存
 
@@ -569,7 +572,7 @@ response => {
 | R-01 | 后端管理接口最初零覆盖；当前商品/目录/库存/订单/退款（含审核/驳回）/看板/商品图上传均已实现 | 低 | 剩余缺口为部分退款与营销；不要把 mock 当成真实接口验收 |
 | R-02 | 网关 CORS/OPTIONS 初期缺失；当前已实现 | 低 | Gateway 配置已加入 CORS filter 和 OPTIONS 放行 |
 | R-03 | 刷新令牌"一次一换"语义被前端误用（并发刷新 → 强制全端下线） | 高 | 6.2 的单飞队列是**硬要求**，M1 必须实现并专门测试 |
-| R-04 | `product.sales` 无写入方，展示了假数据 | 中 | 同里程碑完成 G-12，或标注数据口径 |
+| R-04 | ~~`product.sales` 无写入方~~（0.10.0 已闭环） | 低 | 退款暂不回减，展示时需保持「支付即计入」口径说明 |
 | R-05 | 库存/销量需跨库聚合，方案选错会引入 N+1 | 中 | 8.2 定案走管理端聚合接口 |
 | R-06 | 商品/目录写接口初期缺少角色限制；当前写接口及商品管理读取均已加服务端角色校验 | 中（安全回归） | 保持 BFF 与下游双层授权，并在服务启动后补跑匿名/USER/CS/OPERATOR/ADMIN 集成用例 |
 | R-07 | 状态/枚举前后端各写一份导致漂移 | 中 | `constants/dict.js` 与需求文档 16.5 对齐，并加注释指向文档章节 |
@@ -605,7 +608,7 @@ response => {
 | :--- | :--- | :--- |
 | BFF 与网关 | `mall-admin` 8111；Gateway `/api/admin/**` 路由与 CORS/OPTIONS | ✅ 已实现 |
 | 角色鉴权 | `mall-common @RequireStaff`；商品及目录写接口要求 `OPERATOR`，管理读取要求 staff | ✅ BFF 与下游读取/写入均受服务端角色校验，公开商品 GET 白名单已收敛 |
-| 商品分页/角标 | `POST /api/admin/product/page`、`GET /api/admin/product/status-counts` | ✅ 已实现；聚合库存和 SKU 数；销量字段没有可靠更新源 |
+| 商品分页/角标 | `POST /api/admin/product/page`、`GET /api/admin/product/status-counts` | ✅ 已实现；聚合库存、SKU 数与 30 日销量（批量，失败降级） |
 | 商品详情与维护 | `GET /api/admin/product/{id}`、`POST /api/admin/product`、`PUT /api/admin/product/{id}`、`PUT /api/admin/product/{id}/status`、`DELETE /api/admin/product/{id}` | ✅ 已实现，写权限在下游校验 |
 | 分类/品牌 | `GET /api/admin/category/list`、`GET /api/admin/brand/list` 及对应 POST/PUT/DELETE | ✅ 已实现 |
 | 库存分页/调整/流水 | `/api/admin/inventory/adjust`、`record/page`，单 SKU 回显 `/sku/{skuId}` | ✅ 调整写幂等流水；流水分页由 BFF 批量补 SKU 信息；库存汇总沿用商品页 |
@@ -613,7 +616,7 @@ response => {
 | 后台退款 | `/api/admin/refund/page`、`/{refundNo}`、`/{refundNo}/approve\|reject` | ✅ 已实现（0.7.0）：查询 + 审核/驳回；部分退款未实现 |
 | 数据看板 | `GET /api/admin/dashboard` | ✅ 已实现；聚合订单概览/趋势、待处理退款、库存统计 |
 | 商品图上传 | `POST /api/admin/upload` → 阿里云 OSS（0.9.0） | ✅ 已实现；密钥只从进程环境读取，桶默认公共读并返回稳定 URL |
-| 商品销量 | `product.sales` 累计写入、30 日销量 | ❌ 无可靠累计销量写入；30 日销量接口/口径也未完成 |
+| 商品销量 | `product.sales` 累计写入、`POST /api/order/admin/product-sales` 批量 30 日销量 | ✅ 已实现（0.10.0）；累计销量按支付成功事件回写，30 日按 `paid_at` 聚合 |
 
 客服 Agent、客服会话/工单和知识库不在上述已实现范围；规划见需求文档 30.3~30.5。
 
@@ -682,7 +685,7 @@ M1 的三个阻塞项 + M2 的商品读取接口已全部落地（构建通过�
 ### 14.3 当时尚未完成的事项（2026-09-19，历史记录）
 
 1. **未做真机端到端验证**：本机 JDK 25 需要 `--patch-module=java.base=<pipatch>` 才能让 Tomcat/Netty 绑端口（需求文档 12.8），而该系统临时目录已被清理、patch 源文件丢失，服务起不来 → 本轮改用**单测 + 直连 MySQL 验 SQL** 覆盖，未跑网关到 BFF 的真机链路。恢复方式见 14.4。
-2. `GET /api/admin/product/page` 的 **30 日销量（G-13）** 仍为 null：需 `mall-order` 提供按时间窗聚合订单明细的接口，接口就绪后在 BFF 内补齐（**刻意不用累计销量冒充**，避免错误口径）。
+2. ~~`GET /api/admin/product/page` 的 **30 日销量（G-13）** 仍为 null~~：0.10.0 已由 `mall-order` 提供按 `paid_at` 时间窗聚合的接口，BFF 在商品分页内批量补齐；累计销量与 30 日销量分列展示，不用累计值冒充。
 3. `mall-product` 的关键字搜索是 `name/subtitle LIKE '%kw%'`，无法命中索引；数据量到 10 万 SKU 时需改用全文或搜索引擎（与 6.1 的性能目标相关）。
 4. 分类/品牌的**增删改**（M3）、商品编辑与逻辑删除接口（G-03）、库存调整与流水（G-07）、订单管理端接口（G-04/G-05）仍待做。
 5. 前端切真机：把 `front/vue-admin-web/.env.development` 的 `VITE_USE_MOCK` 置为 `false` 即可（页面代码无需改动）。该切换已完成，当前文件值为 `false`。
@@ -698,12 +701,12 @@ Test-Path (Join-Path $env:TEMP 'pipatch\out\sun\nio\ch\PipeImpl.class')
 
 该 patch 仅用于当时的本机环境，**刻意不进仓库**。旧记录称其临时目录当时已清理；此处不再把它描述为当前环境状态。
 
-### 14.5 当前状态快照（2026-11-04）
+### 14.5 当前状态快照（2026-11-05）
 
 | 项目 | 当前状态 |
 | :--- | :--- |
 | 后台真实请求模式 | `front/vue-admin-web/.env.development` 为 `VITE_USE_MOCK=false`；Vite 代理指向网关 `127.0.0.1:10000` |
-| 商品管理 | 商品分页/角标/库存聚合、详情、创建、编辑、上下架、逻辑删除已存在；分类/品牌列表及 CRUD 已存在 |
+| 商品管理 | 商品分页/角标/库存聚合、详情、创建、编辑、上下架、逻辑删除已存在；分类/品牌列表及 CRUD 已存在；0.10.0 起累计销量与 30 日销量为真实数据 |
 | 库存管理 | 商品级库存汇总；选择具体 SKU 可增量调整，库存服务检查已锁定/可售边界并写幂等流水、可信操作人 ID/名称；流水页支持 SKU ID 与类型筛选、分页、SKU/操作人信息补齐 |
 | 订单与退款 | 后台订单分页/详情/发货/代客确认收货（0.3.0 / 0.6.0）；退款分页/详情/审核/驳回已闭环（0.7.0）；部分退款仍未实现 |
 | 工作台/看板 | `GET /api/admin/dashboard` 已交付（0.5.0）：订单概览与趋势、待处理退款、库存统计；图表用原生 SVG |
@@ -720,7 +723,7 @@ Test-Path (Join-Path $env:TEMP 'pipatch\out\sun\nio\ch\PipeImpl.class')
 1. **先修网关 CORS/OPTIONS**（G-16）——否则前端第一步就撞 401。
 2. **建 `mall-admin` BFF 骨架（8111）+ 网关 `/api/admin/**` 路由 + `@RequireStaff` 鉴权**（Q2/Q4b 决策）——三者同一批做，避免 BFF 一创建就是无鉴权状态。
 3. **在已建脚手架 `front/vue-admin-web` 内改造 + 请求层 + 登录**（M1）——目标是"能登录、能无感刷新"。
-4. **并行推后端 M2 接口 + `product.sales` 回写**（G-02/G-12）——前端同步用 mock 做「我的商品」页。
+4. ~~**并行推后端 M2 接口 + `product.sales` 回写**（G-02/G-12）~~——已完成（0.10.0），前端「我的商品」页已接真实数据。
 5. 之后按 M3 → M4 依次推进，每个里程碑以"能演示的完整闭环"结束。
 
 ---

@@ -30,6 +30,30 @@ class OrderMapperXmlTest {
     private static final String ITEM_MAPPER = "src/main/resources/mapper/OrderItemMapper.xml";
 
     @Test
+    @DisplayName("30 日销量：按 product_id 批量聚合，按 paid_at 归窗且只算成交状态")
+    void productSalesBetweenUsesPaidAtAndPaidStatuses() throws Exception {
+        Configuration configuration = parse(ITEM_MAPPER);
+        Map<String, Object> params = new HashMap<>();
+        params.put("productIds", List.of(1L, 2L));
+        params.put("start", java.time.LocalDateTime.of(2026, 10, 7, 0, 0));
+        params.put("end", java.time.LocalDateTime.of(2026, 11, 6, 0, 0));
+
+        MappedStatement statement = configuration.getMappedStatement(
+                "com.zhe.mall.order.mapper.OrderItemMapper.selectProductSalesBetween");
+        BoundSql boundSql = statement.getBoundSql(params);
+        String sql = normalize(boundSql.getSql());
+
+        assertThat(sql).contains("join orders o on o.order_no = i.order_no");
+        assertThat(sql).contains("o.status in (20, 30, 40, 60)");
+        assertThat(sql).contains("o.paid_at is not null");
+        assertThat(sql).contains("o.paid_at >= ?", "o.paid_at < ?");
+        assertThat(sql).contains("i.product_id in ( ? , ? )");
+        assertThat(sql).contains("group by i.product_id");
+        // 不能误用下单时间：未支付订单不应计入销量
+        assertThat(sql).doesNotContain("i.created_at >=");
+    }
+
+    @Test
     @DisplayName("adminPageCondition：无筛选只保留 deleted=0，有筛选才拼条件")
     void adminPageConditionBuildsExpectedSql() throws Exception {
         Configuration configuration = parse(ORDER_MAPPER);

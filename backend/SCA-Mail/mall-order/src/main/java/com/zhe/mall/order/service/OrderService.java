@@ -517,8 +517,9 @@ public class OrderService {
         }
         OrderStateMachine.check(current, OrderStatus.PAID);
 
+        LocalDateTime paidAt = LocalDateTime.now();
         int affected = orderMapper.markPaid(orderNo, current.code(), OrderStatus.PAID.code(),
-                request.payType() == null ? DEFAULT_PAY_TYPE : request.payType(), LocalDateTime.now());
+                request.payType() == null ? DEFAULT_PAY_TYPE : request.payType(), paidAt);
         if (affected == 0) {
             log.info("支付回调并发幂等命中: orderNo={}", orderNo);
             return toPayView(requireOrder(orderNo));
@@ -526,8 +527,43 @@ public class OrderService {
         writeStatusLog(orderNo, current.code(), OrderStatus.PAID, OrderOperator.PAY,
                 request.paymentNo() == null || request.paymentNo().isBlank()
                         ? "支付回调" : "支付回调: " + request.paymentNo());
+        publishOrderPaid(order, paidAt);
         log.info("支付回调处理成功: orderNo={}, paymentNo={}", orderNo, request.paymentNo());
         return toPayView(requireOrder(orderNo));
+    }
+
+    /**
+     * 发布 {@code TOPIC_ORDER_PAID}（G-12 销量回写）。
+     *
+     * <p>只在本事务的支付 CAS 成功后调用，因此与「订单 10 → 20」同生共死：
+     * 订单回滚则事件不落库，订单成立则事件必达。重复回调在 CAS 处已短路，不会重复登记。
+     *
+     * <p>幂等键用 orderNo：同一订单只允许一条销量事件；商品侧还有
+     * {@code product_sales_record(order_no, product_id)} 唯一键作为第二道防线。
+     */
+    private void publishOrderPaid(Order order, LocalDateTime paidAt) {
+        List<OrderItem> items = orderItemMapper.selectByOrderNo(order.getOrderNo());
+        if (items.isEmpty()) {
+            log.warn("订单已支付但没有明细，跳过销量事件: orderNo={}", order.getOrderNo());
+            return;
+        }
+        List<MessageEvents.SalesItem> salesItems = items.stream()
+                .map(item -> new MessageEvents.SalesItem(
+                        item.getProductId(), item.getSkuId(), item.getQty()))
+                .toList();
+        outboxService.recordOnce(
+                "ORDER_PAID",
+                order.getOrderNo(),
+                MessageTopics.ORDER_PAID,
+                MessageTopics.TAG_ORDER_PAID,
+                order.getOrderNo(),
+                order.getOrderNo(),
+                new MessageEvents.OrderPaidEvent(
+                        order.getOrderNo(),
+                        order.getUserId(),
+                        paidAt.toString(),
+                        salesItems),
+                0);
     }
 
     /**
