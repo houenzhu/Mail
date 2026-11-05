@@ -41,6 +41,16 @@ const router = createRouter({
       meta: { title: '商品详情', public: true },
     },
     {
+      // 旧「功能预告」链接兼容：带 id 的旧地址重定向到真实详情
+      path: '/feature/product-detail',
+      redirect: (to) => {
+        const id = Array.isArray(to.query.id) ? to.query.id[0] : to.query.id
+        if (!id) return { name: 'search', query: { q: '' } }
+        const { id: _ignored, ...rest } = to.query
+        return { name: 'product-detail', params: { id: String(id) }, query: rest }
+      },
+    },
+    {
       path: '/cart',
       name: 'cart',
       component: () => import('@/views/CartView.vue'),

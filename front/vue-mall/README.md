@@ -11,6 +11,7 @@ npm run build       # 生产构建
 npm run verify      # 首页 / 搜索 UI 回归（需先启动 dev）
 npm run verify:auth # 登录 / 注册 / 账户中心 UI 验收（需先启动 dev 与后端）
 npm run verify:cart # 商品详情 / SKU / 购物车 UI 验收（需先启动 dev 与后端）
+npm run verify:demo # 首页演示商品、旧详情链接与真实详情 UI 验收（需先启动 dev 与后端）
 ```
 
 ## 已实现页面
@@ -25,7 +26,15 @@ npm run verify:cart # 商品详情 / SKU / 购物车 UI 验收（需先启动 de
 | `/register` | 注册（校验、昵称选填、密码强度、协议确认） | 已完成 |
 | `/account` | 账户中心（登录守卫、身份头、快捷入口、资料） | 已完成 |
 | `/feature/:feature` | 功能预告（订单、收藏等未上线入口） | 已完成 |
+| `/feature/product-detail?id=` | 旧详情链接兼容，重定向到 `/product/:id` | 已完成 |
 | `*` | 404 | 已完成 |
+
+## 演示商品与旧链接
+
+- 首页「猜你喜欢」不足一屏时会补位演示商品；这 13 个商品已写入后端种子数据（`backend/SCA-Mail/sql/15_seed_demo_products.sql`），拥有真实商品详情、SKU 与库存。
+- 演示商品卡片统一指向 `/product/:id`，点击后进入真实详情页，不再落到功能预告。
+- 旧地址 `/feature/product-detail?id=105` 会 302 到 `/product/105`；缺少 `id` 时回到全部商品列表。
+- 首页接口整体失败时仍降级到演示数据，但降级卡片同样可打开详情；此时详情请求若失败会显示明确错误态，而不是空白。
 
 ## 购物车说明
 

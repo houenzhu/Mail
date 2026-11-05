@@ -162,7 +162,7 @@ export const demoProducts = demoRawProducts.map((raw) => {
     priceMax,
     salesText,
     tag: raw.badge,
-    detailPath: `/feature/product-detail?id=${raw.id}`,
+    detailPath: `/product/${raw.id}`,
   }
 })
 

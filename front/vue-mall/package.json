@@ -11,7 +11,8 @@
     "verify:probe": "node scripts/probe.mjs",
     "verify:shot": "node scripts/shot.mjs",
     "verify:auth": "node scripts/verify-auth.mjs",
-    "verify:cart": "node scripts/verify-cart.mjs"
+    "verify:cart": "node scripts/verify-cart.mjs",
+    "verify:demo": "node scripts/verify-demo-products.mjs"
   },
   "dependencies": {
     "pinia": "^4.0.3",

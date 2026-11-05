@@ -267,8 +267,16 @@ async function main() {
     JSON.stringify({ activeBefore, ...skuState }),
   )
 
+  // 种子数据里商品 2 的 L 码库存为 0；显式打开它验证售罄禁用，避免依赖首页首卡是哪件商品
+  await goto('/product/2')
+  await waitFor("!!document.querySelector('.detail-info__title')")
+  await waitFor("document.querySelectorAll('.sku-option').length >= 2")
   const soldOut = JSON.parse(await evaluate("JSON.stringify({disabled: [...document.querySelectorAll('.sku-option')].filter((n) => n.disabled).map((n) => n.innerText.trim())})"))
   record('售罄规格禁用选择', soldOut.disabled.length >= 1, JSON.stringify(soldOut))
+  await goto(`/product/${PRODUCT_ID}`)
+  await waitFor("!!document.querySelector('.detail-info__title')")
+  await waitFor("!!document.querySelector('.sku-option.is-active')")
+
 
   console.log('3) 未登录加购跳登录并保留 redirect ...')
   expectedAuthFailure = true
