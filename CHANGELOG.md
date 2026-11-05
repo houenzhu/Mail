@@ -4,6 +4,28 @@
 
 ## 未发布
 
+- （暂无）
+
+## [0.11.0] - 2026-11-05
+
+- 收货地址簿 + C 端下单支付闭环（0.11.0）：`feat(order)`。
+  - 数据库：新增 `sql/16_mall_user_address.sql`，`mall_user.user_address` 用生成列
+    `default_user_id = IF(is_default=1, user_id, NULL)` + 唯一索引 `uk_default_user` 保证
+    「每用户最多一条默认地址」；`NULL` 不参与唯一性，软删除不影响补位。
+  - `mall-user`：新增 `/api/user/address` 增删改查与设默认；首条自动默认、切默认互斥、
+    删默认自动提升最近一条、当前默认不能被改成非默认、最多 20 条（`31007~31009`）。
+  - `mall-order`：`OrderDTO` 补齐收货人 / 电话 / 地址 / 备注 / 物流 / 发货 / 取消字段；
+    分页改为返回 `PageResult<OrderListVO>`（`{ order, items }`），按整页订单号批量查明细，无 N+1。
+  - `mall-pay`：新增 `POST /api/pay/mock/{paymentNo}/pay`，仅 `MOCK` 渠道开放，
+    校验登录与支付单归属，内部复用主动查询链路而不直接改库。
+  - 买家端：新增 `/checkout`、`/order/list`、`/order/:orderNo`、`/pay/:orderNo`；
+    购物车结算改为跳转结算页（移除旧预览抽屉），页头与账户中心订单入口指向真实列表。
+  - 验证：`mvn -pl mall-pay,mall-order,mall-user -am test` 通过；
+    `scripts/e2e-order.ps1` 18/18（地址 CRUD、默认互斥/补位、越权、下单幂等、分页详情、
+    支付越权、Mock 支付、发货、确认收货、取消、状态日志）；
+    `scripts/e2e-sales.ps1` 8/8、`scripts/e2e-cart.ps1` 11/11 无回归；
+    前端 `npm run build`、`verify:cart` 18/18、`verify:order` 17/17。
+
 - 运维：RocketMQ 的存储、服务端日志、GC 日志与客户端日志统一收敛到 E: 盘，停止占用 C 盘空间。
   - 服务端 `E:\rocketmq\conf\rmq.*.logback.xml` 的日志根目录改为 `rocketmq.log.root`，
     默认 `E:/rocketmq/logs/rocketmqlogs`，不再回退 `${user.home}/logs`。

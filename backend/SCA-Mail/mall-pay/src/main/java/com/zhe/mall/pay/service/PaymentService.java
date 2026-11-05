@@ -79,6 +79,9 @@ public class PaymentService {
 
     private final PaymentMapper paymentMapper;
 
+    /** 只有当前渠道为 MOCK 时才开放"模拟支付成功"入口（演示 / 联调用）。 */
+    private static final String MOCK_CHANNEL_CODE = "MOCK";
+
     private final PaymentCallbackLogMapper callbackLogMapper;
 
     private final OrderClientWrapper orderClient;
@@ -367,6 +370,30 @@ public class PaymentService {
                             + "paymentNo={}, orderNo={}",
                     inserted, payment.getPaymentNo(), payment.getOrderNo());
         }
+    }
+
+    // ------------------------------------------------------------------ 模拟支付（仅 Mock）
+
+    /**
+     * 模拟支付成功：仅 Mock 通道可用。
+     *
+     * <p>不做"直接改库"的快捷方式，而是复用 {@link #sync(String)} ——
+     * 支付单 CAS、订单同步通知、Outbox 兜底、渠道记账全部走真实链路，
+     * 这样演示环境验证到的行为和接真通道时一致。
+     *
+     * <p>三道闸门：登录（userId 为空 20001）→ 支付单归属（他人 20003）→ 当前渠道必须是 MOCK。
+     * 生产切到微信/支付宝后本接口自然失效，不存在"前端能改支付状态"的漏洞。
+     */
+    public CallbackResultVO mockPay(String paymentNo, Long userId) {
+        Payment payment = requirePayment(paymentNo);
+        requirePaymentOwnership(payment, userId);
+        PayChannel channel = channelRegistry.current();
+        if (!MOCK_CHANNEL_CODE.equalsIgnoreCase(channel.code())) {
+            throw new BusinessException(ResultCode.PAY_CHANNEL_UNAVAILABLE,
+                    "当前支付渠道不支持模拟支付: " + channel.code());
+        }
+        log.info("模拟支付成功请求: paymentNo={}, userId={}", paymentNo, userId);
+        return sync(paymentNo);
     }
 
     // ------------------------------------------------------------------ 主动查询兜底

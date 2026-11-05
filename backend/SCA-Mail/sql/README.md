@@ -18,6 +18,7 @@
 | `12_order_completed.sql` | `mall_order` | 为订单增加完成时间与索引（UC-ORDER-06 确认收货，可重复执行） |
 | `13_refund_audit.sql` | `mall_pay` | 为退款单增加审核人/审核时间字段（退款审核流，可重复执行） |
 | `14_product_sales.sql` | `mall_product` | `product_sales_record`（销量回写认领，唯一键 `order_no + product_id`）、`consumed_message`（MQ 消费幂等，主键 `msg_id`） |
+| `16_mall_user_address.sql` | `mall_user` | `user_address`（收货地址簿，UC-USER-02）：生成列 `default_user_id` + 唯一索引 `uk_default_user` 保证「每用户最多一条默认地址」 |
 
 ## 执行方式
 
@@ -72,6 +73,6 @@ powershell -ExecutionPolicy Bypass -File .\scripts\init-db.ps1 -MysqlHome 'D:\my
 
 ## 待补充
 
-`mall_user.user_address`（收货地址）与积分流水、`mall_promotion`（优惠券、秒杀活动）、`mall_cart`、`mall_comment` 的建表脚本随对应阶段补充。
+积分流水、`mall_promotion`（优惠券、秒杀活动）、`mall_comment` 的建表脚本随对应阶段补充（`mall_cart` 使用 Redis，无建表脚本；收货地址已由 `16_mall_user_address.sql` 交付）。
 
 客服会话、工单与 AI Agent 知识库目前没有数据库表或持久化实现；若后续确定采用客服 Agent，应先按需求文档 30.3 定义保留期限、脱敏和访问控制，再单独设计 schema。不要把用户订单/支付明细复制进向量库充当客服知识。

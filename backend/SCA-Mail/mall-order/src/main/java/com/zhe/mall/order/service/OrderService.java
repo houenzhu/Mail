@@ -28,6 +28,7 @@ import com.zhe.mall.order.dto.OrderDTO;
 import com.zhe.mall.order.dto.OrderDetailVO;
 import com.zhe.mall.order.dto.OrderItemDTO;
 import com.zhe.mall.order.dto.OrderItemRequest;
+import com.zhe.mall.order.dto.OrderListVO;
 import com.zhe.mall.order.dto.OrderPageQuery;
 import com.zhe.mall.order.dto.OrderStatusLogDTO;
 import com.zhe.mall.order.entity.Order;
@@ -279,15 +280,37 @@ public class OrderService {
         return new OrderDetailVO(toDTO(order), items, logs);
     }
 
-    public PageResult<OrderDTO> page(OrderPageQuery query) {
+    /**
+     * 我的订单分页：订单主体 + 明细。
+     *
+     * <p>明细按整页订单号一次批量查询（{@code selectByOrderNos}），
+     * 不做逐单回查 —— 10 条订单一页会放大成 11 次查询。
+     */
+    public PageResult<OrderListVO> page(OrderPageQuery query) {
         long total = orderMapper.countPage(query);
         if (total == 0) {
             return PageResult.empty(query.pageNo(), query.pageSize());
         }
-        List<OrderDTO> list = orderMapper.selectPage(query, query.offset(), query.pageSize()).stream()
-                .map(this::toDTO)
+        List<Order> orders = orderMapper.selectPage(query, query.offset(), query.pageSize());
+        Map<String, List<OrderItemDTO>> itemsByOrder = itemsByOrderNo(orders);
+        List<OrderListVO> list = orders.stream()
+                .map(order -> new OrderListVO(toDTO(order),
+                        itemsByOrder.getOrDefault(order.getOrderNo(), List.of())))
                 .toList();
         return PageResult.of(total, query.pageNo(), query.pageSize(), list);
+    }
+
+    /** 整页订单的明细一次性取回，按 orderNo 分组；空页不发查询。 */
+    private Map<String, List<OrderItemDTO>> itemsByOrderNo(List<Order> orders) {
+        if (orders == null || orders.isEmpty()) {
+            return Map.of();
+        }
+        List<String> orderNos = orders.stream().map(Order::getOrderNo).toList();
+        return orderItemMapper.selectByOrderNos(orderNos).stream()
+                .collect(java.util.stream.Collectors.groupingBy(OrderItem::getOrderNo,
+                        java.util.LinkedHashMap::new,
+                        java.util.stream.Collectors.mapping(this::toItemDTO,
+                                java.util.stream.Collectors.toList())));
     }
 
     /**
@@ -820,6 +843,9 @@ public class OrderService {
         return new OrderDTO(order.getOrderNo(), order.getUserId(), order.getStatus(),
                 OrderStatus.of(order.getStatus()).label(), order.getTotalAmount(), order.getDiscountAmount(),
                 order.getPayAmount(), order.getCouponId(), order.getPayType(), order.getCancelReason(),
+                order.getReceiverName(), order.getReceiverPhone(), order.getReceiverAddress(),
+                order.getRemark(), order.getShippingCompany(), order.getTrackingNo(),
+                order.getShippedAt(), order.getShippedBy(), order.getCancelledAt(),
                 order.getExpireAt(), order.getPaidAt(), order.getCompletedAt(), order.getCreatedAt());
     }
 

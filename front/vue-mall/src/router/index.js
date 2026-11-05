@@ -57,6 +57,30 @@ const router = createRouter({
       meta: { title: '购物车', requiresAuth: true },
     },
     {
+      path: '/checkout',
+      name: 'checkout',
+      component: () => import('@/views/CheckoutView.vue'),
+      meta: { title: '确认订单', requiresAuth: true },
+    },
+    {
+      path: '/order/list',
+      name: 'order-list',
+      component: () => import('@/views/OrderListView.vue'),
+      meta: { title: '我的订单', requiresAuth: true },
+    },
+    {
+      path: '/order/:orderNo',
+      name: 'order-detail',
+      component: () => import('@/views/OrderDetailView.vue'),
+      meta: { title: '订单详情', requiresAuth: true },
+    },
+    {
+      path: '/pay/:orderNo',
+      name: 'pay',
+      component: () => import('@/views/PayView.vue'),
+      meta: { title: '收银台', requiresAuth: true },
+    },
+    {
       path: '/account',
       name: 'account',
       component: () => import('@/views/AccountView.vue'),

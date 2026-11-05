@@ -149,6 +149,14 @@ export const useCartStore = defineStore('cart', () => {
     }
   }
 
+  /** 下单成功后清理已购 SKU；后端返回最新的 CartView，直接覆盖本地状态。 */
+  async function removePurchased(skuIds) {
+    if (!Array.isArray(skuIds) || !skuIds.length) return null
+    const view = await cartApi.removePurchasedCartItems(skuIds)
+    apply(view)
+    return view
+  }
+
   async function checkout() {
     checkingOut.value = true
     try {
@@ -180,6 +188,7 @@ export const useCartStore = defineStore('cart', () => {
     toggleItem,
     toggleAll,
     remove,
+    removePurchased,
     checkout,
     reset,
   }

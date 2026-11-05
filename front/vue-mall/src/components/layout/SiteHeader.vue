@@ -42,8 +42,10 @@ const shortcuts = computed(() =>
 
 function targetFor(item) {
   if (item.feature === 'cart') return cartTarget.value
-  if (item.feature === 'orders' && isLoggedIn.value) {
-    return { name: 'account' }
+  if (item.feature === 'orders') {
+    return isLoggedIn.value
+      ? { name: 'order-list' }
+      : { name: 'login', query: { redirect: '/order/list', reason: 'required' } }
   }
   if (item.feature === 'favorites' && isLoggedIn.value) {
     return { name: 'account' }
@@ -188,7 +190,7 @@ onBeforeUnmount(() => {
               <RouterLink role="menuitem" :to="{ name: 'account' }">账户中心</RouterLink>
               <RouterLink
                 role="menuitem"
-                :to="{ name: 'feature', params: { feature: 'orders' } }"
+                :to="{ name: 'order-list' }"
               >
                 我的订单
               </RouterLink>

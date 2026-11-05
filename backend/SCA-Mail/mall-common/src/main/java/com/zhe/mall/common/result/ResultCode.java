@@ -39,6 +39,12 @@ public enum ResultCode {
 
     ACCOUNT_DISABLED(31006, "账号已注销或停用"),
 
+    ADDRESS_NOT_FOUND(31007, "收货地址不存在"),
+
+    ADDRESS_LIMIT_EXCEEDED(31008, "收货地址数量已达上限"),
+
+    ADDRESS_DEFAULT_CONFLICT(31009, "默认地址设置冲突，请刷新后重试"),
+
     PRODUCT_NOT_FOUND(32001, "商品不存在"),
 
     PRODUCT_OFF_SHELF(32002, "商品已下架"),

@@ -8,6 +8,7 @@ import com.zhe.mall.order.dto.OrderCreateRequest;
 import com.zhe.mall.order.dto.OrderCreateVO;
 import com.zhe.mall.order.dto.OrderDTO;
 import com.zhe.mall.order.dto.OrderDetailVO;
+import com.zhe.mall.order.dto.OrderListVO;
 import com.zhe.mall.order.dto.OrderPageQuery;
 import com.zhe.mall.order.service.OrderService;
 import jakarta.validation.Valid;
@@ -42,7 +43,7 @@ public class OrderController {
     }
 
     @GetMapping("/page")
-    public Result<PageResult<OrderDTO>> page(
+    public Result<PageResult<OrderListVO>> page(
             @CurrentUserId Long userId,
             @RequestParam(value = "status", required = false) Integer status,
             @RequestParam(value = "pageNo", required = false) Integer pageNo,

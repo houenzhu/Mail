@@ -34,7 +34,7 @@ const lastLoginText = computed(() => {
 })
 
 const quickLinks = [
-  { label: '我的订单', desc: '查看订单与物流', icon: 'ticket', feature: 'orders' },
+  { label: '我的订单', desc: '查看订单与物流', icon: 'ticket', feature: 'orders', to: { name: 'order-list' } },
   { label: '我的收藏', desc: '收好喜欢的宝贝', icon: 'heart', feature: 'favorites' },
   { label: '购物车', desc: '待结算的商品', icon: 'cart', feature: 'cart', to: { name: 'cart' } },
   { label: '会员权益', desc: '积分与专属优惠', icon: 'gift', feature: 'member' },

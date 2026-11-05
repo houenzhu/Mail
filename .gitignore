@@ -34,3 +34,12 @@ Thumbs.db
 
 # Local temporary files
 **/.tmp/
+
+# Local debugging artifacts (not part of the product)
+/front/vue-mall/scripts/debug.mjs
+/front/vue-mall/scripts/dump.mjs
+/front/vue-mall/scripts/mobile-shot.mjs
+/front/vue-mall/scripts/scene-shot.mjs
+/front/vue-mall/scripts/snap.mjs
+/qr_kc50_raw.txt
+/qr_market.py

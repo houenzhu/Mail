@@ -26,7 +26,7 @@
 | :--- | :--- | :--- |
 | `mall-gateway` | 10000 | 统一入口网关（WebFlux + lb 路由 + **Sa-Token 会话鉴权** + 身份头透传；对外契约仍是 `Authorization: Bearer`） |
 | `mall-auth` | 8101 | 认证授权中心：注册 / 登录 / 刷新 / 注销 / 当前用户；凭证落 `mall_auth`，**令牌与账号会话以 Redis db1 的 `satoken:*` 为准**（访问令牌 300s、刷新令牌 7d，见需求文档 21.9） |
-| `mall-user` | 8102 | 用户服务：用户档案（`mall_user`）、内部建档接口、当前用户档案查询 |
+| `mall-user` | 8102 | 用户服务：用户档案（`mall_user`）、内部建档接口、当前用户档案查询、**收货地址簿**（`/api/user/address`） |
 | `mall-product` | 8103 | 商品服务：商品/SKU 查询、分页、新增/编辑/上下架/逻辑删除，分类品牌查询与维护；商品详情走 Redis 缓存 |
 | `mall-cart` | 8109 | **购物车服务**：Redis Hash 存储用户选择（数量 / 勾选 / 加购时间）；加购与改数量走 Lua 原子校验数量、库存与种类上限；每次读取实时刷新价格、上下架与库存 |
 | `mall-inventory` | 8104 | 库存服务：查询 / 初始化 / 扣减 / 回滚（条件更新防超卖） |
@@ -41,7 +41,8 @@
 ## 当前实现边界
 
 - 管理后台已接通登录、商品管理、分类/品牌维护、库存调整与流水查询、订单查询/发货/确认收货、退款查询与**审核/驳回**、数据看板；库存调整、订单写操作与退款审批只允许运营/管理员，客服可查看。看板由 `mall-admin` 聚合订单/支付/库存三个服务，见 [后台前端说明](../../front/vue-admin-web/README.md)。
-- 买家端 `front/vue-mall` 已接入首页、搜索、登录注册、账户中心、商品详情 / SKU 与购物车；购物车后端 `mall-cart`（8109）与页面均已交付，结算预览可用，下单与支付待下一阶段。
+- 买家端 `front/vue-mall` 已接入首页、搜索、登录注册、账户中心、商品详情 / SKU、购物车、**收货地址、确认订单、下单、收银台（Mock 支付）、订单列表与详情**；
+  后端 `mall-cart` / `mall-user`（地址）/ `mall-order` / `mall-pay` 对应接口均已交付，C 端下单支付闭环可跑通。
 - 当前没有客服会话、工单、知识库或 LangChain Agent 服务。第 30 章记录了作为后续项目的范围、数据准备和接口安全要求；它是规划，不是已交付功能。
 - **权限已补齐（2026-10-28）**：`/api/admin/**` 的商品与目录读取在 BFF 控制器要求 staff，下游管理读取接口再次要求 staff；网关公开商品 GET 白名单已收敛为明确的 C 端路径，不再覆盖 `/api/product/admin/**`。内部身份仍由 `X-Gateway-Token` 证明，直连服务或伪造身份头按匿名处理。
 
@@ -137,14 +138,20 @@ powershell -ExecutionPolicy Bypass -File .\scripts\init-db.ps1
 | cart | POST | `/api/cart/checkout` | 结算预览（只返回「已勾选且有效」行；全部未选 → `37006`） |
 | cart | POST | `/api/cart/purchased/remove` | 下单成功后清理已购 SKU（只影响本人购物车） |
 | cart | DELETE | `/api/cart/{skuId}` | 删除单品 |
+| user | GET | `/api/user/address` | **收货地址列表**（按最近更新倒序；身份取自令牌，不接受 `userId`） |
+| user | POST | `/api/user/address` | 新增地址（首条自动默认；最多 20 条，超限 `31008`） |
+| user | PUT | `/api/user/address/{id}` | 修改地址（当前默认地址不能被改成非默认，避免出现「有地址无默认」） |
+| user | DELETE | `/api/user/address/{id}` | 删除地址（删除默认地址时自动把最近更新的一条提为默认） |
+| user | PUT | `/api/user/address/{id}/default` | 设为默认（同用户默认地址互斥，并发冲突 `31009`） |
 | order | POST | `/api/order` | 创建订单（幂等键 `userId + requestId`；`userId` 取自令牌，客户端传参无效） |
 | order | GET | `/api/order/{orderNo}` | 订单详情（含明细与状态流转日志；校验归属，非本人且非 staff 返回 `20003`） |
-| order | GET | `/api/order/page` | 我的订单分页（身份取自令牌；`status` / `pageNo` / `pageSize` 可选，**不接受 `userId` 参数**） |
+| order | GET | `/api/order/page` | 我的订单分页（身份取自令牌；`status` / `pageNo` / `pageSize` 可选，**不接受 `userId` 参数**）；返回 `PageResult<OrderListVO>`，每行 `{ order, items }`，明细按整页订单号批量查询，无 N+1 |
 | order | POST | `/api/order/{orderNo}/cancel` | 取消订单 |
 | order | POST | `/api/order/internal/{orderNo}/pay-callback` | 支付回调（**仅 mall-pay 直连调用**：内部路径 + `X-Gateway-Token`，网关拦截外部访问；变更见需求文档 ADR-022 / 28.13） |
 | order | GET | `/api/order/internal/{orderNo}/pay-view` | 订单支付视图（支付侧核对金额与状态；内部路径 + `X-Gateway-Token`，**须直连服务**） |
 | order | POST | `/api/order/internal/{orderNo}/refund-callback` | 退款阶段回调（`REFUNDING` / `REFUNDED` / `REJECTED`；内部令牌） |
 | pay | POST | `/api/pay` | 发起支付（幂等键 `userId + requestId`；校验订单归属、订单状态与金额） |
+| pay | POST | `/api/pay/mock/{paymentNo}/pay` | **模拟支付成功**（仅当前渠道为 `MOCK` 时开放）：必须登录且为本人支付单，他人 `20003`；内部复用主动查询链路，不直接改库 |
 | pay | GET | `/api/pay/{paymentNo}` | 支付单查询（本人或 staff） |
 | pay | POST | `/api/pay/refund` | 申请退款（限已支付未发货、全额；`refund.active_key` 唯一索引幂等） |
 | pay | GET | `/api/pay/refund/{refundNo}` | 退款单查询 |

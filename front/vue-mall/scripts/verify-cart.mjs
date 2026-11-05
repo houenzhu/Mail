@@ -371,28 +371,30 @@ async function main() {
   await waitFor("!!document.querySelector('.cart-summary__all input')?.checked")
   await sleep(700)
 
-  console.log('7) 结算预览 ...')
+  console.log('7) 进入确认订单页 ...')
   await click('.cart-summary__submit')
-  await waitFor("!!document.querySelector('.checkout-sheet')")
+  await waitFor("location.pathname === '/checkout'")
+  // .checkout-main 是常驻容器，必须等数据渲染完成后才开始断言
+  await waitFor("!!document.querySelector('.checkout-layout .panel')", 12000)
   const checkoutState = JSON.parse(
     await evaluate(`JSON.stringify({
-      items: document.querySelectorAll('.checkout-item').length,
-      amount: document.querySelector('.checkout-total__amount dd')?.innerText || '',
-      note: document.querySelector('.checkout-note')?.innerText || '',
-      dialog: document.querySelector('.checkout-sheet')?.getAttribute('role')
+      path: location.pathname,
+      items: document.querySelectorAll('.item-list .item').length,
+      amount: document.querySelector('.summary__total dd')?.innerText || '',
+      submit: document.querySelector('.summary__submit')?.innerText.trim() || '',
+      panels: document.querySelectorAll('.panel').length
     })`),
   )
   record(
-    '结算预览展示勾选商品与应付金额',
-    checkoutState.items >= 1 &&
+    '确认订单页展示地址、商品与应付金额',
+    checkoutState.path === '/checkout' &&
+      checkoutState.items >= 1 &&
       checkoutState.amount.includes('¥') &&
-      checkoutState.dialog === 'dialog' &&
-      checkoutState.note.includes('下一阶段'),
+      checkoutState.panels >= 3,
     JSON.stringify(checkoutState),
   )
-  await screenshot('cart-checkout-sheet')
-  await click('.checkout-sheet__close')
-  await waitFor("!document.querySelector('.checkout-sheet')")
+  await layout('桌面确认订单页', ['.checkout-layout', '.summary', '.item-list'])
+  await screenshot('cart-checkout-page')
 
   console.log('8) 移动端详情与购物车（有商品）...')
   await viewport(390, 844)

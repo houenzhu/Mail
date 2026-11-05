@@ -15,6 +15,13 @@ public interface OrderItemMapper {
 
     List<OrderItem> selectByOrderNo(@Param("orderNo") String orderNo);
 
+    /**
+     * 整页订单的明细批量查询（我的订单列表）。
+     *
+     * <p>一次 IN 查询替代「逐单查明细」的 N+1；调用方保证 orderNos 非空。
+     */
+    List<OrderItem> selectByOrderNos(@Param("orderNos") List<String> orderNos);
+
     /** 批量取订单明细聚合（件数/数量），供后台列表展示。 */
     List<OrderItemStat> selectStatsByOrderNos(@Param("orderNos") List<String> orderNos);
 

@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zhe.mall.user.mapper.UserAddressMapper">
+
+    <sql id="baseColumns">
+        id, user_id, receiver_name, receiver_phone, region, detail_address,
+        is_default, deleted, created_at, updated_at
+    </sql>
+
+    <select id="selectByUserId" resultType="com.zhe.mall.user.entity.UserAddress">
+        select <include refid="baseColumns"/>
+        from user_address
+        where user_id = #{userId} and deleted = 0
+        order by is_default desc, updated_at desc, id desc
+    </select>
+
+    <select id="selectById" resultType="com.zhe.mall.user.entity.UserAddress">
+        select <include refid="baseColumns"/>
+        from user_address
+        where id = #{id} and user_id = #{userId} and deleted = 0
+    </select>
+
+    <select id="countByUserId" resultType="int">
+        select count(1) from user_address
+        where user_id = #{userId} and deleted = 0
+    </select>
+
+    <insert id="insert">
+        insert into user_address
+            (id, user_id, receiver_name, receiver_phone, region, detail_address, is_default, deleted)
+        values
+            (#{id}, #{userId}, #{receiverName}, #{receiverPhone}, #{region}, #{detailAddress},
+             #{isDefault}, 0)
+    </insert>
+
+    <update id="update">
+        update user_address
+        set receiver_name = #{receiverName},
+            receiver_phone = #{receiverPhone},
+            region = #{region},
+            detail_address = #{detailAddress},
+            is_default = #{isDefault}
+        where id = #{id} and user_id = #{userId} and deleted = 0
+    </update>
+
+    <!-- 生成列 default_user_id 由 is_default 自动推导，这里只需把旧默认置 0 -->
+    <update id="clearDefault">
+        update user_address
+        set is_default = 0
+        where user_id = #{userId} and deleted = 0 and is_default = 1
+    </update>
+
+    <update id="markDefault">
+        update user_address
+        set is_default = 1
+        where id = #{id} and user_id = #{userId} and deleted = 0
+    </update>
+
+    <update id="softDelete">
+        update user_address
+        set deleted = 1, is_default = 0
+        where id = #{id} and user_id = #{userId} and deleted = 0
+    </update>
+
+    <select id="selectLatestByUserId" resultType="com.zhe.mall.user.entity.UserAddress">
+        select <include refid="baseColumns"/>
+        from user_address
+        where user_id = #{userId} and deleted = 0
+        order by updated_at desc, id desc
+        limit 1
+    </select>
+</mapper>

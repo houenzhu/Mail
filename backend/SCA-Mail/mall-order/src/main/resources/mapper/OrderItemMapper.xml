@@ -13,6 +13,16 @@
         order by id
     </select>
 
+    <select id="selectByOrderNos" resultType="com.zhe.mall.order.entity.OrderItem">
+        select <include refid="baseColumns"/>
+        from order_item
+        where order_no in
+        <foreach collection="orderNos" item="orderNo" open="(" separator="," close=")">
+            #{orderNo}
+        </foreach>
+        order by id
+    </select>
+
     <insert id="insertBatch">
         insert into order_item (id, order_no, user_id, sku_id, product_id, product_name, sku_spec, price, qty, total_amount)
         values

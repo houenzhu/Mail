@@ -21,7 +21,11 @@ npm run verify:demo # 首页演示商品、旧详情链接与真实详情 UI 验
 | `/` | 首页（分类导航、轮播、活动入口、服务保障、猜你喜欢、场景展示） | 已完成 |
 | `/search?q=` | 搜索结果（真实接口、综合/销量排序、空态与错误态） | 已完成 |
 | `/product/:id` | 商品详情（实时价格、规格联动、库存、数量、加购、看了又看） | 已完成 |
-| `/cart` | 购物车（登录守卫、数量、勾选、全选、删除、结算预览） | 已完成 |
+| `/cart` | 购物车（登录守卫、数量、勾选、全选、删除、去结算） | 已完成 |
+| `/checkout` | 确认订单（地址选择/新增/编辑、明细、备注、幂等提交） | 已完成 |
+| `/order/list` | 我的订单（状态 Tab、分页、明细卡片、去支付） | 已完成 |
+| `/order/:orderNo` | 订单详情（收货/物流、金额、状态时间线、支付倒计时、取消/确认收货） | 已完成 |
+| `/pay/:orderNo` | 收银台（创建支付单、渠道参数、Mock 模拟支付、轮询状态） | 已完成 |
 | `/login` | 登录（校验、错误提示、redirect、记住用户名） | 已完成 |
 | `/register` | 注册（校验、昵称选填、密码强度、协议确认） | 已完成 |
 | `/account` | 账户中心（登录守卫、身份头、快捷入口、资料） | 已完成 |
@@ -46,7 +50,19 @@ npm run verify:demo # 首页演示商品、旧详情链接与真实详情 UI 验
 - 失效商品保留在列表并标记 `invalidReason`，不可勾选、不计入金额，由用户显式删除。
 - `available = null` 表示库存未知，不按售罄处理；结算金额最终以订单服务计算为准。
 
-> 订单、地址与在线支付尚未进入本阶段，结算预览只展示商品、件数与应付金额，不伪造下单成功。
+> 结算页会重新调用 `POST /api/cart/checkout` 取价，避免沿用上一页的旧金额；下单成功后按 SKU 调用
+> `POST /api/cart/purchased/remove` 清理已购商品，失败不影响订单成立。
+
+### 订单与支付
+
+- 下单幂等：进入结算页生成一次 `requestId`，重复点击 / 网络重试复用同一个值；
+  服务端用 `userId + requestId` 唯一索引兜底，重放返回首次订单（`idempotentReplay=true`）。
+- 收银台先 `POST /api/pay` 建支付单，再按渠道展示：
+  - `channel=MOCK` 时显示「模拟支付成功」，调用 `POST /api/pay/mock/{paymentNo}/pay`；
+  - 其他渠道展示「我已完成支付」，轮询 `GET /api/pay/{paymentNo}` 直到 `status=20`。
+- 支付结果以支付单状态为准，成功后回查订单详情再展示；`CallbackResultVO.orderStatus` 可能为空，不能直接用它判断。
+- 订单详情按状态给动作：待支付 → 去支付 / 取消；已发货 → 确认收货；其余只读。
+- 地址使用 `region` 文本 + `detailAddress`，不由前端做三级级联；`fullAddress` 由服务端拼接。
 
 ## 认证说明
 
@@ -66,7 +82,9 @@ npm run verify:demo # 首页演示商品、旧详情链接与真实详情 UI 验
 - `src/components/auth`：登录注册共用布局与卡片，跨认证页复用。
 - `src/components/layout`：页头、页脚、搜索、悬浮工具条。
 - `src/components/product`：商品卡片、网格、SKU 选择器与数量步进器，首页、搜索、详情页共用。
-- `src/components/cart`：购物车行、结算栏与结算预览抽屉，只依赖 `cart` store 与通用组件。
+- `src/components/cart`：购物车行与结算栏，只依赖 `cart` store 与通用组件；结算已改为跳转 `/checkout`。
+- `src/components/address`：收货地址表单抽屉（新增 / 编辑共用）。
+- `src/utils/order.js`：订单状态、Tab、支付倒计时与规格快照格式化。
 - `src/components/home`：首页专属分区组件。
 - `src/composables`：数据聚合、轮播状态机与认证表单校验，视图不直接取数。
 - `src/stores/user.js`：用户态、登录态恢复与跨标签令牌同步；注销 / 失效时同步清空购物车。
@@ -98,6 +116,27 @@ npm run verify:demo # 首页演示商品、旧详情链接与真实详情 UI 验
 
 错误码：`37001` 商品不存在、`37002` 数量非法、`37003` 种类超限、`37004` 商品不可购买、`37005` SKU 不可购买、`37006` 未勾选有效商品、`37007` 单件超过 99、`37008` 库存不足。前端在 `src/utils/errors.js` 统一转为买家可读文案。
 
+### 地址 / 订单 / 支付接口（均需登录）
+
+| 接口 | 说明 |
+| :--- | :--- |
+| `GET /api/user/address` | 收货地址列表（按最近更新倒序） |
+| `POST /api/user/address` | 新增地址；首条自动默认，最多 20 条 |
+| `PUT /api/user/address/{id}` | 修改地址 |
+| `DELETE /api/user/address/{id}` | 删除地址；删默认地址会自动补位 |
+| `PUT /api/user/address/{id}/default` | 设为默认（同用户互斥） |
+| `POST /api/order` | 提交订单（`requestId` 幂等） |
+| `GET /api/order/page` | 我的订单分页，返回 `{ order, items }` 行 |
+| `GET /api/order/{orderNo}` | 订单详情（订单主体 + 明细 + 状态日志） |
+| `POST /api/order/{orderNo}/cancel` | 取消待支付订单 |
+| `POST /api/order/{orderNo}/confirm` | 确认收货（已发货 → 已完成） |
+| `POST /api/pay` | 发起支付，返回 `paymentNo` 与渠道参数 |
+| `GET /api/pay/{paymentNo}` | 支付单查询（用于轮询） |
+| `POST /api/pay/mock/{paymentNo}/pay` | Mock 通道模拟支付成功 |
+
+错误码：`31007~31009` 地址、`34001~34003` 订单、`35001/35004/35007/35008` 支付，
+文案统一在 `src/utils/errors.js`。
+
 ### 认证接口
 
 | 接口 | 说明 |
@@ -110,7 +149,6 @@ npm run verify:demo # 首页演示商品、旧详情链接与真实详情 UI 验
 
 ## 已知边界
 
-- 下单、地址、在线支付与订单列表仍属于后续阶段；购物车结算只做预览。
 - 失效商品不会自动删除，需用户显式删除；这是后端既定行为，页面已提供原因提示。
 - 注册会写入开发库；本仓库不会提交真实手机号或用户数据。
 - 忘记密码、用户协议与隐私政策目前为功能预告页。
@@ -119,4 +157,4 @@ npm run verify:demo # 首页演示商品、旧详情链接与真实详情 UI 验
 
 ## 下一阶段
 
-第四阶段：地址管理、下单、订单列表与支付回跳。当前购物车的 `checkout` 只做结算预览，下一阶段接入订单服务后，再调用 `POST /api/cart/purchased/remove` 清理已购商品。
+第四阶段已完成地址簿、下单、订单列表/详情与 Mock 支付闭环。真实支付渠道（微信 / 支付宝）与退款入口仍待接入；当前 Mock 通道只在演示 / 联调环境开放。

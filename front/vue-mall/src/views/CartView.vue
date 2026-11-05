@@ -10,7 +10,6 @@ import SiteFooter from '@/components/layout/SiteFooter.vue'
 import FloatingToolbar from '@/components/layout/FloatingToolbar.vue'
 import CartItemRow from '@/components/cart/CartItemRow.vue'
 import CartSummaryBar from '@/components/cart/CartSummaryBar.vue'
-import CartCheckoutSheet from '@/components/cart/CartCheckoutSheet.vue'
 import { useCartStore } from '@/stores/cart'
 import { messageForError } from '@/utils/errors'
 
@@ -18,9 +17,6 @@ const router = useRouter()
 const cartStore = useCartStore()
 const toastRef = ref(null)
 const busySkuId = ref(null)
-const checkoutOpen = ref(false)
-const checkoutData = ref(null)
-const checkoutLoading = ref(false)
 
 const items = computed(() => cartStore.items)
 const hasItems = computed(() => cartStore.hasItems)
@@ -86,31 +82,8 @@ async function openCheckout() {
     toastRef.value?.show('请先选择要结算的商品', 'error')
     return
   }
-  checkoutLoading.value = true
-  try {
-    const data = await cartStore.checkout()
-    checkoutData.value = {
-      ...data,
-      items: (data?.items || []).map((item) => ({
-        ...item,
-        image: cartStore.items.find((row) => row.skuId === item.skuId)?.image || '',
-      })),
-    }
-    checkoutOpen.value = true
-  } catch (cause) {
-    toastRef.value?.show(messageForError(cause, '结算预览加载失败'), 'error')
-  } finally {
-    checkoutLoading.value = false
-  }
-}
-
-function closeCheckout() {
-  checkoutOpen.value = false
-}
-
-function confirmCheckout() {
-  toastRef.value?.show('商品已确认，下单与支付将在下一阶段开放')
-  checkoutOpen.value = false
+  // 价格与失效状态在结算页会重新拉一次，这里只做入口校验，避免带着旧金额进入下单
+  await router.push({ name: 'checkout' })
 }
 
 onMounted(() => load(true))
@@ -198,7 +171,6 @@ onMounted(() => load(true))
           :selected-count="cartStore.selectedCount"
           :selected-amount="cartStore.selectedAmount"
           :valid-count="validItems.length"
-          :loading="checkoutLoading"
           :selecting="cartStore.selecting"
           @toggle-all="toggleAll"
           @checkout="openCheckout"
@@ -234,13 +206,6 @@ onMounted(() => load(true))
     <SiteFooter />
     <FloatingToolbar />
     <AppToast ref="toastRef" />
-    <CartCheckoutSheet
-      :open="checkoutOpen"
-      :checkout="checkoutData"
-      :loading="checkoutLoading"
-      @close="closeCheckout"
-      @confirm="confirmCheckout"
-    />
   </div>
 </template>
 
