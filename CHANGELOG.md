@@ -4,7 +4,16 @@
 
 ## 未发布
 
-暂无。
+- 运维：RocketMQ 的存储、服务端日志、GC 日志与客户端日志统一收敛到 E: 盘，停止占用 C 盘空间。
+  - 服务端 `E:\rocketmq\conf\rmq.*.logback.xml` 的日志根目录改为 `rocketmq.log.root`，
+    默认 `E:/rocketmq/logs/rocketmqlogs`，不再回退 `${user.home}/logs`。
+  - 存储（`E:\rocketmq\store`）与 GC 日志（`E:\rocketmq\logs\mq_gc.log`）同在 E 盘；
+    历史 C 盘日志与废弃 store 已归档到 `E:\rocketmq\logs\archive`、`E:\rocketmq\backup`。
+  - 客户端日志模板由 `rocketmq-client` 内置、无法改包：`scripts/start-all.ps1` 为每个服务
+    追加 `-Drocketmq.log.root=E:/rocketmq/logs/rocketmqlogs`，并自动从「用户环境变量」
+    补齐 `MYSQL_PASSWORD` / `INTERNAL_TOKEN` / `REDIS_PASSWORD` / `PAY_CHANNEL_SECRET`。
+  - 验证：NameServer 9876、Broker 10911 正常；9 个服务健康检查全部 UP；`scripts/e2e-sales.ps1` 8/8；
+    C 盘不再生成 `logs\rocketmqlogs` 或 `store`。
 
 ## [0.10.0] - 2026-11-05
 

@@ -10,6 +10,9 @@ New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 
 $patchDir = if ($env:PIPATCH_DIR) { $env:PIPATCH_DIR } else { Join-Path $env:TEMP 'pipatch\out' }
 $jvmArgs = @()
+# RocketMQ client 内置 rmq.client.logback.xml 默认写 ${user.home}/logs/rocketmqlogs，
+# 显式指定日志根目录，避免客户端日志继续占 C 盘（服务端配置见 E:/rocketmq/conf）。
+$jvmArgs += "-Drocketmq.log.root=E:/rocketmq/logs/rocketmqlogs"
 # 显式使用 JAVA_HOME 下的 java.exe；否则 Start-Process 'java' 会取 PATH，可能跑到别的 JDK。
 $javaHome = $env:JAVA_HOME
 if (-not $javaHome -and $env:JAVA_HOME_21) { $javaHome = $env:JAVA_HOME_21 }
@@ -22,6 +25,16 @@ if ($javaHome) {
     $javaExe = (Get-Command java -ErrorAction Stop).Source
     if ($javaExe -match 'jdk-?21') {
         Write-Host ("using JDK 21 runtime: {0}" -f $javaExe)
+    }
+}
+
+# 敏感配置统一放在本机「用户环境变量」里；从当前终端 New-Item/Start-Process 起的进程
+# 不一定继承到，缺什么补什么（已存在则以当前进程为准）。
+$userEnvKeys = @('MYSQL_PASSWORD', 'INTERNAL_TOKEN', 'REDIS_PASSWORD', 'PAY_CHANNEL_SECRET')
+foreach ($key in $userEnvKeys) {
+    if (-not [Environment]::GetEnvironmentVariable($key, 'Process')) {
+        $value = [Environment]::GetEnvironmentVariable($key, 'User')
+        if ($value) { Set-Item -Path "Env:$key" -Value $value }
     }
 }
 

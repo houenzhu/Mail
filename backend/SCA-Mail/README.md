@@ -310,6 +310,7 @@ curl -X POST "http://127.0.0.1:8106/api/pay/internal/reconcile/2026-09-15" -H "X
 - 订单超时时间与扫描周期可在 `application.yml` 的 `mall.order.*` 下调整（`pay-timeout-minutes`、`timeout-scan.enabled` / `interval-ms`）。注意**超时关单的延时消息固定用 RocketMQ delayLevel=16（30 分钟）**，改成非 30 分钟时由 `OrderTimeoutTask` 兜底纠正（见需求文档 29.7）。
 - 当前推荐使用 JDK 21 启动 Tomcat / Netty，不需要 `java.base` 补丁。若必须使用历史 JDK 25 环境，才需要按需求文档 12.8 准备 `PIPATCH_DIR` 补丁。
 - **RocketMQ broker 的存储路径要在 `broker.conf` 里用正斜杠**（如 `storePathRootDir = E:/rocketmq/store`）：RocketMQ 用 `java.util.Properties` 读配置，反斜杠是转义符，写成 `E:\rocketmq\store` 会因 `\r` 被当成回车而启动失败（见需求文档 29.6 坑 3）。另外 C: 盘使用率超过 `diskMaxUsedSpaceRatio`（默认 90%）时 broker 会拒绝所有写入并返回 CODE 14，本机已把存储迁到 E: 盘。
+- **本机 RocketMQ 的存储、服务端日志、GC 日志和客户端日志全部固定在 E: 盘**（C: 盘余量长期紧张）：`E:\rocketmq\store`、`E:\rocketmq\logs\rocketmqlogs`、`E:\rocketmq\logs\mq_gc.log`。服务端由 `E:\rocketmq\conf\rmq.*.logback.xml` 指定日志根目录；客户端日志由 `rmq-client` 内置模板决定、改不动，因此 `scripts/start-all.ps1` 会给每个 JVM 加 `-Drocketmq.log.root=E:/rocketmq/logs/rocketmqlogs`。手工在 IDEA 里启动服务时也要带这个参数，否则客户端日志仍会写到 `C:\Users\<user>\logs\rocketmqlogs`。
 
 ## 后续阶段
 
