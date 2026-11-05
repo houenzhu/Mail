@@ -37,6 +37,11 @@ spring:
               uri: lb://mall-inventory
               predicates:
                 - Path=/api/inventory/**
+            # C 端购物车（8109）：必须登录，不能加入 mall.auth.whitelist。
+            - id: mall-cart
+              uri: lb://mall-cart
+              predicates:
+                - Path=/api/cart/**
             - id: mall-order
               uri: lb://mall-order
               predicates:
@@ -108,6 +113,7 @@ mall:
       - GET:/api/product/*/detail
       - GET:/api/product/page
       - GET:/api/product/sku/**
+      - GET:/api/product/batch
       - GET:/api/product/category/list
       - GET:/api/product/brand/list
       - GET:/api/search/**

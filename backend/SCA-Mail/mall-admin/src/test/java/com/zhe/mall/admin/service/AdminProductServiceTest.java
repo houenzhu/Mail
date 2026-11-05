@@ -243,6 +243,16 @@ class AdminProductServiceTest {
         }
 
         @Override
+        public Result<List<ProductDTO>> getByIds(List<Long> productIds) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Result<List<SkuDTO>> getSkusByIds(List<Long> skuIds) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public Result<Void> updateStatus(Long productId, Integer status) {
             throw new UnsupportedOperationException();
         }
@@ -319,6 +329,11 @@ class AdminProductServiceTest {
             map.put(1002L, new InventoryDTO(1002L, 50, 1, 49));
             map.put(1003L, new InventoryDTO(1003L, 200, 193, 7));
             return Result.success(map);
+        }
+
+        @Override
+        public Result<Map<Long, Integer>> getAvailableBatch(InventoryBatchRequest request) {
+            throw new UnsupportedOperationException();
         }
 
         @Override

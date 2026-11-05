@@ -13,6 +13,9 @@ public interface ProductMapper {
 
     Product selectById(@Param("id") Long id);
 
+    /** C 端批量取商品（购物车刷新商品名称、图片与上下架状态）。 */
+    List<Product> selectByIds(@Param("ids") java.util.Collection<Long> ids);
+
     /**
      * 分页查询。{@code query} 里带 deleted 与 productId 条件，因此管理端（含已删除/按 ID 精确查）
      * 与 C 端共用这一条语句，避免再写一套近乎重复的管理端查询。

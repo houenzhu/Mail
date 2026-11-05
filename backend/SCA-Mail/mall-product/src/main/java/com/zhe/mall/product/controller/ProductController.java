@@ -11,7 +11,7 @@ import com.zhe.mall.common.auth.RequireStaff;
 import com.zhe.mall.common.auth.UserRole;
 import com.zhe.mall.common.result.PageResult;
 import com.zhe.mall.common.result.Result;
-import com.zhe.mall.product.dto.ProductDetailVO;
+import com.zhe.mall.product.dto.CProductDetailVO;
 import com.zhe.mall.product.dto.ProductPageQuery;
 import com.zhe.mall.product.service.ProductService;
 import jakarta.validation.Valid;
@@ -44,8 +44,8 @@ public class ProductController {
     }
 
     @GetMapping("/{productId}/detail")
-    public Result<ProductDetailVO> detailWithSkus(@PathVariable("productId") Long productId) {
-        return Result.success(productService.detailWithSkus(productId));
+    public Result<CProductDetailVO> detailWithSkus(@PathVariable("productId") Long productId) {
+        return Result.success(productService.cDetail(productId));
     }
 
     @GetMapping("/page")
@@ -69,6 +69,18 @@ public class ProductController {
     @GetMapping("/sku/{skuId}")
     public Result<SkuDTO> sku(@PathVariable("skuId") Long skuId) {
         return Result.success(productService.sku(skuId));
+    }
+
+    /** C 端批量取商品：购物车刷新时一次拿全，避免逐条调用。 */
+    @GetMapping("/batch")
+    public Result<List<ProductDTO>> batch(@RequestParam("ids") List<Long> productIds) {
+        return Result.success(productService.productsByIds(productIds));
+    }
+
+    /** C 端批量取 SKU：购物车刷新时一次拿全，避免 N+1。 */
+    @GetMapping("/sku/batch")
+    public Result<List<SkuDTO>> skuBatch(@RequestParam("ids") List<Long> skuIds) {
+        return Result.success(productService.skusByIds(skuIds));
     }
 
     /* ---------------- 管理端数据接口（由 mall-admin 经 Feign 调用） ----------------

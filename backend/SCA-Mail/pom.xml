@@ -21,6 +21,7 @@
         <module>mall-user</module>
         <module>mall-product</module>
         <module>mall-inventory</module>
+        <module>mall-cart</module>
         <module>mall-order</module>
         <module>mall-pay</module>
         <module>mall-promotion</module>

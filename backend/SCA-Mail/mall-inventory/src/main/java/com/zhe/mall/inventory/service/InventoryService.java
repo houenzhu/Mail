@@ -81,6 +81,19 @@ public class InventoryService {
                 .collect(Collectors.toMap(Inventory::getSkuId, this::toDTO, (a, b) -> a));
     }
 
+    /** C 端批量可售库存：只暴露 available，缺少库存记录的 SKU 不出现在结果中。 */
+    public Map<Long, Integer> getAvailableBatch(Collection<Long> skuIds) {
+        if (skuIds == null || skuIds.isEmpty()) {
+            return Map.of();
+        }
+        List<Long> distinct = skuIds.stream().filter(Objects::nonNull).distinct().toList();
+        if (distinct.isEmpty()) {
+            return Map.of();
+        }
+        return inventoryMapper.selectByIds(distinct).stream()
+                .collect(Collectors.toMap(Inventory::getSkuId, Inventory::getAvailable, (a, b) -> a));
+    }
+
     @Transactional(rollbackFor = Exception.class)
     public DeductResult deduct(DeductRequest request) {
         requireRequest(request);

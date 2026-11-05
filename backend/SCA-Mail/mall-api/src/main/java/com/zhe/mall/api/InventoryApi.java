@@ -31,6 +31,14 @@ public interface InventoryApi {
     @PostMapping("/batch")
     Result<Map<Long, InventoryDTO>> getBatch(@RequestBody InventoryBatchRequest request);
 
+    /**
+     * C 端批量查询可售库存：只返回 available，不暴露 total / locked。
+     *
+     * <p>购物车与商品详情都必须用实时可售量，不能复用带 {@code @RequireStaff} 的管理端接口。
+     */
+    @PostMapping("/available")
+    Result<Map<Long, Integer>> getAvailableBatch(@RequestBody InventoryBatchRequest request);
+
     @PostMapping("/deduct")
     Result<DeductResult> deduct(@RequestBody DeductRequest request);
 

@@ -28,6 +28,7 @@
 | `mall-auth` | 8101 | 认证授权中心：注册 / 登录 / 刷新 / 注销 / 当前用户；凭证落 `mall_auth`，**令牌与账号会话以 Redis db1 的 `satoken:*` 为准**（访问令牌 300s、刷新令牌 7d，见需求文档 21.9） |
 | `mall-user` | 8102 | 用户服务：用户档案（`mall_user`）、内部建档接口、当前用户档案查询 |
 | `mall-product` | 8103 | 商品服务：商品/SKU 查询、分页、新增/编辑/上下架/逻辑删除，分类品牌查询与维护；商品详情走 Redis 缓存 |
+| `mall-cart` | 8109 | **购物车服务**：Redis Hash 存储用户选择（数量 / 勾选 / 加购时间）；加购与改数量走 Lua 原子校验数量、库存与种类上限；每次读取实时刷新价格、上下架与库存 |
 | `mall-inventory` | 8104 | 库存服务：查询 / 初始化 / 扣减 / 回滚（条件更新防超卖） |
 | `mall-order` | 8105 | 订单服务：下单（Redis 幂等标记 + DB 唯一索引）/ 状态机 / 取消 / 支付回调 / 超时兜底 |
 | `mall-pay` | 8106 | 支付服务：支付单 / 渠道回调验签 / 主动查询兜底 / 全额退款 / 支付对账（**已落地**：支付单 / 回调验签 / 主动查询兜底 / 全额退款 / 支付对账 + 3 个定时任务，见需求文档第二十八章 28.10~28.13） |
@@ -40,7 +41,7 @@
 ## 当前实现边界
 
 - 管理后台已接通登录、商品管理、分类/品牌维护、库存调整与流水查询、订单查询/发货/确认收货、退款查询与**审核/驳回**、数据看板；库存调整、订单写操作与退款审批只允许运营/管理员，客服可查看。看板由 `mall-admin` 聚合订单/支付/库存三个服务，见 [后台前端说明](../../front/vue-admin-web/README.md)。
-- 买家端 `front/vue-mall` 仍为初始脚手架，尚无商城业务流程。
+- 买家端 `front/vue-mall` 仍为初始脚手架，尚无商城业务流程；**购物车后端已交付（`mall-cart`，端口 8109），但 C 端购物车页面尚未接入**。
 - 当前没有客服会话、工单、知识库或 LangChain Agent 服务。第 30 章记录了作为后续项目的范围、数据准备和接口安全要求；它是规划，不是已交付功能。
 - **权限已补齐（2026-10-28）**：`/api/admin/**` 的商品与目录读取在 BFF 控制器要求 staff，下游管理读取接口再次要求 staff；网关公开商品 GET 白名单已收敛为明确的 C 端路径，不再覆盖 `/api/product/admin/**`。内部身份仍由 `X-Gateway-Token` 证明，直连服务或伪造身份头按匿名处理。
 
@@ -52,6 +53,7 @@
 | `/api/user/**` | `lb://mall-user` |
 | `/api/product/**` | `lb://mall-product` |
 | `/api/inventory/**` | `lb://mall-inventory` |
+| `/api/cart/**` | `lb://mall-cart`（**必须登录**，不在鉴权白名单） |
 | `/api/order/**` | `lb://mall-order` |
 | `/api/pay/**` | `lb://mall-pay` |
 | `/api/promotion/**` | `lb://mall-promotion` |
@@ -70,6 +72,7 @@
 | `mall.auth.internal-token` | 空（必须配置） | `INTERNAL_TOKEN`（网关与全部服务一致，否则服务端视为匿名） |
 | `mall.auth.phone-salt` | `mall-dev-phone-salt` | `PHONE_SALT`（需与 `sql/07_seed_user_auth.sql` 的盐一致） |
 | `spring.data.redis.*` | `192.168.198.133:6379`，db1，2s 超时；密码空（按需配置） | `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` / `REDIS_DATABASE` |
+| `mall.cart.*`（mall-cart） | TTL 30 天、最多 100 种 SKU、单 SKU 上限 99 | `CART_TTL_SECONDS` / `CART_MAX_ITEMS` / `CART_MAX_QUANTITY` |
 | `mall.cache.*`（mall-product） | TTL 1800s + 抖动 0~300s、空值 60s、锁 10s | `MALL_CACHE_ENABLED` 等（见需求文档 19.2 / 22.9） |
 | `mall.auth.enabled`（mall-gateway） | 网关鉴权开关，默认 `true`（关闭时仅透传 traceId，仅限本地调试） | `AUTH_ENABLED`；**Redis 不可用时鉴权 fail-closed**（V1.10 起已无黑名单开关，见需求文档 21.9.4 / 27.6） |
 | `mall.auth.cors.allowed-origin-patterns`（mall-gateway） | 跨域来源，默认 `*`（**生产必须收敛为具体域名**） | `CORS_ALLOWED_ORIGIN_PATTERNS` / `CORS_ALLOW_CREDENTIALS`；预检由 `CorsWebFilter`（最高优先级）短路，白名单另放行 `OPTIONS:/**`，见 21.9.5 |
@@ -125,6 +128,13 @@ powershell -ExecutionPolicy Bypass -File .\scripts\init-db.ps1
 | inventory | POST | `/api/inventory/init` | 初始化库存 |
 | inventory | POST | `/api/inventory/deduct` | 扣减（幂等键 `orderNo + skuId`） |
 | inventory | POST | `/api/inventory/rollback` | 回滚（幂等键 `orderNo + skuId`） |
+| cart | GET | `/api/cart` | 当前用户购物车（实时刷新价格 / 库存 / 上下架；失效行保留并标记 `invalid`） |
+| cart | POST | `/api/cart` | 加购（同 SKU 累加；单 SKU 上限 99、最多 100 种 SKU；下架 / 售罄拒绝） |
+| cart | PUT | `/api/cart` | 批量修改数量 / 勾选（`quantity <= 0` 删除） |
+| cart | PUT | `/api/cart/selection` | 批量勾选；`skuIds` 为空表示全选 / 全不选（只计数有效行） |
+| cart | POST | `/api/cart/checkout` | 结算预览（只返回「已勾选且有效」行；全部未选 → `37006`） |
+| cart | POST | `/api/cart/purchased/remove` | 下单成功后清理已购 SKU（只影响本人购物车） |
+| cart | DELETE | `/api/cart/{skuId}` | 删除单品 |
 | order | POST | `/api/order` | 创建订单（幂等键 `userId + requestId`；`userId` 取自令牌，客户端传参无效） |
 | order | GET | `/api/order/{orderNo}` | 订单详情（含明细与状态流转日志；校验归属，非本人且非 staff 返回 `20003`） |
 | order | GET | `/api/order/page` | 我的订单分页（身份取自令牌；`status` / `pageNo` / `pageSize` 可选，**不接受 `userId` 参数**） |

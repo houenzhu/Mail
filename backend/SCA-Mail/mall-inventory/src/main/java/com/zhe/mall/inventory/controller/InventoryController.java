@@ -51,6 +51,17 @@ public class InventoryController {
         return Result.success(inventoryService.getBatch(request == null ? null : request.skuIds()));
     }
 
+    /**
+     * C 端批量可售库存：购物车与商品详情使用。
+     *
+     * <p>只返回 {@code skuId -> available}，不暴露总量、锁定量与预警阈值；该接口必须登录，
+     * 且服务端仍只信任网关注入的身份头。缺少库存记录的 SKU 不出现在结果中，由调用方按 0 处理。
+     */
+    @PostMapping("/available")
+    public Result<Map<Long, Integer>> availableBatch(@RequestBody InventoryBatchRequest request) {
+        return Result.success(inventoryService.getAvailableBatch(request == null ? null : request.skuIds()));
+    }
+
     @PostMapping("/deduct")
     public Result<DeductResult> deduct(@RequestBody DeductRequest request) {
         return Result.success(inventoryService.deduct(request));

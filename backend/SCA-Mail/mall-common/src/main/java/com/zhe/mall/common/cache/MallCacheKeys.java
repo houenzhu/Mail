@@ -26,6 +26,8 @@ public final class MallCacheKeys {
 
     private static final String IDEM_PAY_CALLBACK = PREFIX + "idem:pay:callback:";
 
+    private static final String CART = PREFIX + "cart:";
+
     /** Mock 通道"渠道侧流水"（仅 dev / E2E 使用，见 28.11 #16 的差异制造口径） */
     private static final String PAY_MOCK_BILL = PREFIX + "pay:mock:bill:";
 
@@ -73,6 +75,11 @@ public final class MallCacheKeys {
      */
     public static String payCallbackIdempotent(String channel, String channelTradeNo) {
         return IDEM_PAY_CALLBACK + channel + ":" + channelTradeNo;
+    }
+
+    /** 购物车 Hash：field = skuId，value = 数量 / 勾选状态 / 加购时间。 */
+    public static String cart(Long userId) {
+        return CART + userId;
     }
 
     /**

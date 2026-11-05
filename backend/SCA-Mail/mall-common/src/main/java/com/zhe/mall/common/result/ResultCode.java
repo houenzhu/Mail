@@ -4,7 +4,8 @@ package com.zhe.mall.common.result;
  * 统一错误码表（见需求文档 18.3）。
  *
  * <p>分段：0 成功；1xxxx 参数校验；2xxxx 认证授权；3xxxx 业务（30000 通用、31xxx 用户、
- * 32xxx 商品、33xxx 库存、34xxx 订单、35xxx 支付、36xxx 营销）；5xxxx 下游依赖；9xxxx 系统。
+ * 32xxx 商品、33xxx 库存、34xxx 订单、35xxx 支付、36xxx 营销、37xxx 购物车）；
+ * 5xxxx 下游依赖；9xxxx 系统。
  */
 public enum ResultCode {
 
@@ -97,6 +98,22 @@ public enum ResultCode {
     COUPON_UNAVAILABLE(36002, "优惠券不可用"),
 
     SECKILL_ENDED(36003, "秒杀活动已结束"),
+
+    CART_ITEM_NOT_FOUND(37001, "购物车商品不存在"),
+
+    CART_QUANTITY_INVALID(37002, "购物车数量非法"),
+
+    CART_ITEM_LIMIT_EXCEEDED(37003, "购物车商品种类已达上限"),
+
+    CART_PRODUCT_UNAVAILABLE(37004, "商品已下架或不可购买"),
+
+    CART_SKU_UNAVAILABLE(37005, "商品规格不存在、已下架或已售罄"),
+
+    CART_SELECTION_EMPTY(37006, "请至少选择一件商品"),
+
+    CART_QUANTITY_EXCEEDED(37007, "购物车单品数量不能超过 99"),
+
+    CART_STOCK_NOT_ENOUGH(37008, "购物车商品库存不足"),
 
     DOWNSTREAM_UNAVAILABLE(50001, "下游服务不可用"),
 

@@ -1,0 +1,64 @@
+server:
+  port: 8109
+
+spring:
+  application:
+    name: mall-cart
+  cloud:
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+      discovery:
+        namespace: ${NACOS_NAMESPACE:}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+      config:
+        namespace: ${NACOS_NAMESPACE:}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+        file-extension: yaml
+    openfeign:
+      client:
+        config:
+          default:
+            connect-timeout: 1000
+            read-timeout: 5000
+  config:
+    import:
+      - optional:nacos:${spring.application.name}.yaml
+  data:
+    redis:
+      host: ${REDIS_HOST:192.168.198.133}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:1}
+      timeout: 2s
+      connect-timeout: 2s
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+          min-idle: 0
+          max-wait: 1s
+
+mall:
+  auth:
+    # 与网关、mall-auth 保持一致；未配置时服务端不采信任何身份头（fail-closed，见 21.2）
+    internal-token: ${INTERNAL_TOKEN:}
+  cart:
+    # 购物车无操作后的保留时长（秒），默认 30 天
+    ttl-seconds: ${CART_TTL_SECONDS:2592000}
+    # 单个用户购物车最多保留的 SKU 种类数
+    max-items: ${CART_MAX_ITEMS:100}
+    # 单个 SKU 可加购的最大数量
+    max-quantity: ${CART_MAX_QUANTITY:99}
+
+logging:
+  pattern:
+    level: "%5p [${spring.application.name:},%X{traceId:-}]"
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always

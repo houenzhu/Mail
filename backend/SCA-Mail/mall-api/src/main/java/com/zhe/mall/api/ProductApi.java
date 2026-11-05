@@ -32,6 +32,14 @@ public interface ProductApi {
     @GetMapping("/sku/{skuId}")
     Result<SkuDTO> getSkuById(@PathVariable("skuId") Long skuId);
 
+    /** C 端批量取商品（购物车刷新商品名称、图片与上下架状态）。 */
+    @GetMapping("/batch")
+    Result<List<ProductDTO>> getByIds(@RequestParam("ids") List<Long> productIds);
+
+    /** C 端批量取 SKU（购物车与商品详情一次取回，避免逐条查询造成 N+1）。 */
+    @GetMapping("/sku/batch")
+    Result<List<SkuDTO>> getSkusByIds(@RequestParam("ids") List<Long> skuIds);
+
     /**
      * 管理端商品分页（mall-admin 调用）。
      *

@@ -6,6 +6,7 @@ import com.zhe.mall.api.dto.AdminProductStatusCounts;
 import com.zhe.mall.api.dto.BrandDTO;
 import com.zhe.mall.api.dto.CategoryDTO;
 import com.zhe.mall.api.dto.InitStockRequest;
+import com.zhe.mall.api.dto.InventoryBatchRequest;
 import com.zhe.mall.api.dto.ProductDTO;
 import com.zhe.mall.api.dto.ProductSaveRequest;
 import com.zhe.mall.api.dto.SkuDTO;
@@ -17,6 +18,8 @@ import com.zhe.mall.common.result.PageResult;
 import com.zhe.mall.common.result.Result;
 import com.zhe.mall.common.result.ResultCode;
 import com.zhe.mall.product.dto.ProductDetailVO;
+import com.zhe.mall.product.dto.CProductDetailVO;
+import com.zhe.mall.product.dto.CProductSkuVO;
 import com.zhe.mall.product.dto.ProductPageQuery;
 import com.zhe.mall.product.entity.Product;
 import com.zhe.mall.product.entity.ProductSku;
@@ -40,9 +43,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 public class ProductService {
+
+    private static final Logger log = LoggerFactory.getLogger(ProductService.class);
 
     private static final int STATUS_OFF_SHELF = 0;
 
@@ -97,6 +104,47 @@ public class ProductService {
         return cached;
     }
 
+    /**
+     * C 端商品详情：基础信息走缓存，可售库存每次实时查询。
+     *
+     * <p>库存绝不能写进 {@link MallCacheKeys#productDetail(Long)}：商品详情缓存 TTL 为 30 分钟，
+     * 而库存随时会因下单变化，缓存库存会造成"页面显示有货、下单却售罄"。
+     * 库存服务异常时返回 {@code available = null}，商品基础信息仍可正常展示。
+     */
+    public CProductDetailVO cDetail(Long productId) {
+        ProductDetailVO detail = detailWithSkus(productId);
+        if (!Integer.valueOf(STATUS_ON_SHELF).equals(detail.product().status())) {
+            throw new BusinessException(ResultCode.PRODUCT_OFF_SHELF, "商品已下架: " + productId);
+        }
+        List<Long> skuIds = detail.skus().stream().map(SkuDTO::id).toList();
+        Map<Long, Integer> available = loadAvailable(skuIds);
+        List<CProductSkuVO> skus = detail.skus().stream()
+                .map(sku -> new CProductSkuVO(sku.id(), sku.productId(), sku.skuCode(), sku.name(),
+                        sku.specJson(), sku.price(), sku.marketPrice(), sku.image(), sku.status(),
+                        available == null ? null : available.getOrDefault(sku.id(), 0)))
+                .toList();
+        return new CProductDetailVO(detail.product(), skus);
+    }
+
+    /** 返回 null 表示库存服务不可用（未知），空 Map 表示确实都没有库存记录。 */
+    private Map<Long, Integer> loadAvailable(List<Long> skuIds) {
+        if (skuIds.isEmpty()) {
+            return Map.of();
+        }
+        try {
+            Result<Map<Long, Integer>> result = inventoryApi.getAvailableBatch(new InventoryBatchRequest(skuIds));
+            if (result == null || !result.isSuccess() || result.data() == null) {
+                log.warn("商品详情查询可售库存失败，降级为未知: skuIds={}, message={}",
+                        skuIds, result == null ? "无响应" : result.message());
+                return null;
+            }
+            return result.data();
+        } catch (RuntimeException e) {
+            log.warn("商品详情查询可售库存异常，降级为未知: skuIds={}, error={}", skuIds, e.getMessage());
+            return null;
+        }
+    }
+
     /** 回源：返回 null 表示数据不存在，由缓存层写成空值标记（防穿透）。 */
     private ProductDetailVO loadDetail(Long productId) {
         Product product = productMapper.selectById(productId);
@@ -123,6 +171,18 @@ public class ProductService {
             throw new BusinessException(ResultCode.SKU_NOT_FOUND, "SKU 不存在: " + skuId);
         }
         return toSkuDTO(sku);
+    }
+
+    /** C 端批量取商品：查不到 / 已删除的商品不返回，由调用方标记为失效。 */
+    public List<ProductDTO> productsByIds(List<Long> productIds) {
+        if (productIds == null || productIds.isEmpty()) {
+            return List.of();
+        }
+        List<Long> distinct = productIds.stream().filter(Objects::nonNull).distinct().toList();
+        if (distinct.isEmpty()) {
+            return List.of();
+        }
+        return productMapper.selectByIds(distinct).stream().map(this::toProductDTO).toList();
     }
 
     /* ---------------- 管理端（mall-admin 调用，见计划文档 G-02 / G-08） ---------------- */
